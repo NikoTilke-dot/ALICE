@@ -154,6 +154,15 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private async Task SaveSettings() { await _settings.SaveAsync(); Status = "Gespeichert."; }
 
+    public const string DeepAiDownloadUrl = "https://deepai.org/chat/ai-code";
+
+    [RelayCommand]
+    private void OpenDeepAiDownload()
+    {
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(DeepAiDownloadUrl) { UseShellExecute = true }); Status = "Download-Seite geöffnet: " + DeepAiDownloadUrl + " – ALICE installiert DeepAI Code nicht mit, bitte dort herunterladen und installieren."; }
+        catch (Exception ex) { Status = "Öffnen fehlgeschlagen: " + ex.Message + " | URL: " + DeepAiDownloadUrl; }
+    }
+
     [RelayCommand]
     private void DetectDeepAi()
     {

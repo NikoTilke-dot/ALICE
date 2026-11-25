@@ -1,4 +1,4 @@
-<img src="assets/icon.svg" width="96" height="96" alt="ALICE Icon">
+<img src="assets/icon-256.png" width="96" height="96" alt="ALICE Icon">
 
 # ALICE
 ### Advanced Literary & Creative Intelligence Studio
