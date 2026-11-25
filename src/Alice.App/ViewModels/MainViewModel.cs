@@ -223,12 +223,16 @@ public partial class MainViewModel : ObservableObject
     private async Task ExportProject(object? formatParam)
     {
         if (Project is null || _importExport is null) { StatusText = "Export nicht verfügbar."; return; }
-        var format = formatParam switch { string s when Enum.TryParse<ExportFormat>(s, out var f) => f, ExportFormat f2 => f2, _ => ExportFormat.Pdf };
-        var (filter, ext) = format switch { ExportFormat.Pdf => ("PDF (*.pdf)|*.pdf", ".pdf"), ExportFormat.Docx => ("Word (*.docx)|*.docx", ".docx"), ExportFormat.Epub => ("EPUB (*.epub)|*.epub", ".epub"), ExportFormat.Markdown => ("Markdown (*.md)|*.md", ".md"), _ => ("Text (*.txt)|*.txt", ".txt") };
+        var owner = System.Windows.Application.Current?.MainWindow;
+        var dialog = new ExportDialog();
+        if (owner is not null) dialog.Owner = owner;
+        if (dialog.ShowDialog() != true) return;
+        var format = dialog.Format; var options = dialog.Options;
+        var (filter, ext) = format switch { ExportFormat.Pdf => ("PDF (*.pdf)|*.pdf", ".pdf"), ExportFormat.Docx => ("Word (*.docx)|*.docx", ".docx"), ExportFormat.Rtf => ("RTF (*.rtf)|*.rtf", ".rtf"), ExportFormat.Odt => ("ODT (*.odt)|*.odt", ".odt"), ExportFormat.Epub => ("EPUB (*.epub)|*.epub", ".epub"), ExportFormat.Markdown => ("Markdown (*.md)|*.md", ".md"), ExportFormat.Html => ("HTML (*.html)|*.html", ".html"), ExportFormat.Zip => ("ZIP (*.zip)|*.zip", ".zip"), _ => ("Text (*.txt)|*.txt", ".txt") };
         var safe = string.Concat(Project.Title.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
         var dlg = new Microsoft.Win32.SaveFileDialog { Filter = filter, FileName = safe + ext, InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) };
         if (dlg.ShowDialog() != true) return;
-        try { await _importExport.ExportAsync(Project, dlg.FileName, format); StatusText = "Exportiert: " + dlg.FileName; }
+        try { await _importExport.ExportAsync(Project, dlg.FileName, format, options); StatusText = "Exportiert: " + dlg.FileName; }
         catch (Exception ex) { StatusText = "Export-Fehler: " + ex.Message; }
     }
 

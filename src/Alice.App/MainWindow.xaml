@@ -132,6 +132,10 @@
                         <Button Content="Wiederholen" Command="{Binding RedoBoardCommand}" Margin="0,0,6,0"/>
                         <Button Content="Speichern" Command="{Binding SaveBoardCommand}" Margin="0,0,6,0"/>
                         <Button Content="Gruppe aus Auswahl" Command="{Binding CreateGroupFromSelectionCommand}" Margin="0,0,6,0"/>
+                        <Button Content="Hierarchie-Layout" Command="{Binding AutoLayoutCommand}" Margin="0,0,6,0" ToolTip="Automatische Baum-Anordnung (manuell, verschiebbar)"/>
+                        <Button Content="Fokus" Command="{Binding FocusSelectedCommand}" Margin="0,0,6,0" ToolTip="Auf ausgewähltes Panel zoomen"/>
+                        <Button Content="Kompakt" Command="{Binding CompactViewCommand}" Margin="0,0,6,0"/>
+                        <Button Content="Storyboard als PNG" Click="BoardExportPng_Click" Margin="0,0,6,0" ToolTip="Canvas als Bild exportieren"/>
                         <Border Width="1" Background="{StaticResource BorderBrush}" Margin="4,0"/>
                         <TextBox Text="{Binding FilterType, UpdateSourceTrigger=PropertyChanged}" Width="130" Margin="0,0,6,0" ToolTip="Filter nach Typ (z. B. Charakter, Idee, Alle Typen)"/>
                         <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,6,0" ToolTip="Nodes durchsuchen"/>
@@ -164,6 +168,12 @@
                         <CheckBox Content="Eingeklappt" IsChecked="{Binding SelectedNode.IsCollapsed}" Margin="0,8,0,0"/>
                         <TextBlock Text="Kartenfarbe" Style="{StaticResource FieldLabel}"/><ItemsControl ItemsSource="{Binding ColorPalette}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Button Width="24" Height="24" Margin="0,0,4,4" Background="{Binding}" BorderBrush="{StaticResource BorderBrush}" Command="{Binding DataContext.ApplyNodeColorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
                         <TextBlock Text="Akzentfarbe" Style="{StaticResource FieldLabel}"/><ItemsControl ItemsSource="{Binding AccentPalette}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Button Width="24" Height="24" Margin="0,0,4,4" Background="{Binding}" BorderBrush="{StaticResource BorderBrush}" Command="{Binding DataContext.ApplyNodeAccentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                        <TextBlock Text="Eigener Panel-Typ" Style="{StaticResource SectionTitle}" Margin="0,12,0,0"/>
+                        <TextBlock Text="Name" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding CustomTypeName, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Text="Symbol (optional, MDL2-Glyph)" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding CustomTypeSymbol, UpdateSourceTrigger=PropertyChanged}"/>
+                        <ItemsControl ItemsSource="{Binding AccentPalette}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Button Width="22" Height="22" Margin="0,4,4,0" Background="{Binding}" Command="{Binding DataContext.SetCustomTypeColorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                        <Button Content="Typ speichern" Command="{Binding AddCustomTypeCommand}" Margin="0,4,0,0"/>
+                        <TextBlock Text="Gespeicherte eigene Typen" Style="{StaticResource FieldLabel}"/><ItemsControl ItemsSource="{Binding CustomTypes}"><ItemsControl.ItemTemplate><DataTemplate><Button Content="{Binding Name}" HorizontalAlignment="Left" Margin="0,2,0,0" Command="{Binding DataContext.AddConnectedCustomSelectedCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Verbundenes Panel aus diesem Typ erstellen"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
                         <TextBlock Text="Verknüpfung mit ALICE-Objekt" Style="{StaticResource SectionTitle}" Margin="0,12,0,0"/>
                         <TextBlock Text="Art" Style="{StaticResource FieldLabel}"/><ComboBox SelectedValue="{Binding SelectedNode.LinkKindText, Mode=TwoWay}" IsEditable="True"><ComboBoxItem Content="None"/><ComboBoxItem Content="Character"/><ComboBoxItem Content="World"/><ComboBoxItem Content="Manuscript"/><ComboBoxItem Content="Timeline"/></ComboBox>
                         <TextBlock Text="Zielobjekt" Style="{StaticResource FieldLabel}"/><ComboBox ItemsSource="{Binding LinkOptions}" DisplayMemberPath="Display" SelectedValuePath="Id" SelectedValue="{Binding SelectedLinkId, Mode=TwoWay}"/>
@@ -179,19 +189,28 @@
                 <Border x:Name="BoardViewport" Background="{StaticResource BoardBg}" ClipToBounds="True" PreviewMouseLeftButtonDown="BoardViewport_PreviewMouseDown" PreviewMouseMove="BoardViewport_PreviewMouseMove" PreviewMouseUp="BoardViewport_PreviewMouseUp" PreviewMouseWheel="BoardViewport_PreviewMouseWheel" PreviewMouseRightButtonDown="BoardViewport_PreviewRightDown" Focusable="True">
                     <Border.ContextMenu>
                         <ContextMenu>
+                            <MenuItem Header="Figur erstellen">
+                                <MenuItem Header="Hauptfigur" Click="BoardCanvasMenu_Click" Tag="MainCharacter"/>
+                                <MenuItem Header="Nebenfigur" Click="BoardCanvasMenu_Click" Tag="SideCharacter"/>
+                                <MenuItem Header="Antagonist" Click="BoardCanvasMenu_Click" Tag="Antagonist"/>
+                                <MenuItem Header="Unterstützende Figur" Click="BoardCanvasMenu_Click" Tag="SupportingCharacter"/>
+                                <MenuItem Header="Charakteridee" Click="BoardCanvasMenu_Click" Tag="CharacterIdea"/>
+                            </MenuItem>
+                            <MenuItem Header="Welt erstellen">
+                                <MenuItem Header="Welt / Ort" Click="BoardCanvasMenu_Click" Tag="World"/>
+                                <MenuItem Header="Kontinent / Land" Click="BoardCanvasMenu_Click" Tag="Continent"/>
+                                <MenuItem Header="Königreich / Stadt" Click="BoardCanvasMenu_Click" Tag="Kingdom"/>
+                                <MenuItem Header="Fraktion / Kultur" Click="BoardCanvasMenu_Click" Tag="Faction"/>
+                                <MenuItem Header="Magiesystem / Lore" Click="BoardCanvasMenu_Click" Tag="MagicSystem"/>
+                            </MenuItem>
+                            <MenuItem Header="Story erstellen">
+                                <MenuItem Header="Kapitel" Click="BoardCanvasMenu_Click" Tag="Chapter"/>
+                                <MenuItem Header="Szene" Click="BoardCanvasMenu_Click" Tag="Scene"/>
+                                <MenuItem Header="Ereignis" Click="BoardCanvasMenu_Click" Tag="Event"/>
+                                <MenuItem Header="Plot / Konflikt" Click="BoardCanvasMenu_Click" Tag="Plot"/>
+                                <MenuItem Header="Geheimnis / Gegenstand" Click="BoardCanvasMenu_Click" Tag="Mystery"/>
+                            </MenuItem>
                             <MenuItem Header="Neues Schreibfeld" Click="BoardCanvasMenu_Click" Tag="Note"/>
-                            <MenuItem Header="Neue Hauptfigur" Click="BoardCanvasMenu_Click" Tag="MainCharacter"/>
-                            <MenuItem Header="Neue Nebenfigur" Click="BoardCanvasMenu_Click" Tag="SideCharacter"/>
-                            <MenuItem Header="Neuer Charakter" Click="BoardCanvasMenu_Click" Tag="Character"/>
-                            <MenuItem Header="Neuer Ort" Click="BoardCanvasMenu_Click" Tag="Location"/>
-                            <MenuItem Header="Neue Welt" Click="BoardCanvasMenu_Click" Tag="World"/>
-                            <MenuItem Header="Neue Fraktion" Click="BoardCanvasMenu_Click" Tag="Faction"/>
-                            <MenuItem Header="Neues Ereignis" Click="BoardCanvasMenu_Click" Tag="Event"/>
-                            <MenuItem Header="Neues Kapitel" Click="BoardCanvasMenu_Click" Tag="Chapter"/>
-                            <MenuItem Header="Neue Szene" Click="BoardCanvasMenu_Click" Tag="Scene"/>
-                            <MenuItem Header="Neuer Gegenstand" Click="BoardCanvasMenu_Click" Tag="Object"/>
-                            <MenuItem Header="Neues Geheimnis" Click="BoardCanvasMenu_Click" Tag="Mystery"/>
-                            <MenuItem Header="Neuer Konflikt" Click="BoardCanvasMenu_Click" Tag="Conflict"/>
                             <MenuItem Header="Neue Idee" Click="BoardCanvasMenu_Click" Tag="Idea"/>
                             <MenuItem Header="Neue Recherche" Click="BoardCanvasMenu_Click" Tag="Research"/>
                             <MenuItem Header="Neue Verbindung" Click="BoardCanvasMenu_Click" Tag="Connect"/>
@@ -206,24 +225,49 @@
                         <ItemsControl ItemsSource="{Binding Nodes}" Panel.ZIndex="2"><ItemsControl.ItemsPanel><ItemsPanelTemplate><Canvas/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemContainerStyle><Style TargetType="ContentPresenter"><Setter Property="Canvas.Left" Value="{Binding X}"/><Setter Property="Canvas.Top" Value="{Binding Y}"/><Setter Property="Panel.ZIndex" Value="{Binding ZIndex}"/></Style></ItemsControl.ItemContainerStyle><ItemsControl.ItemTemplate><DataTemplate><Border x:Name="NodeCard" Width="{Binding Width}" Height="{Binding Height}" Background="{Binding Color, Converter={StaticResource ColorToBrushConverter}}" CornerRadius="12" BorderThickness="1.5" BorderBrush="{StaticResource BorderBrush}" Visibility="{Binding IsVisible, Converter={StaticResource BoolToVisibilityConverter}}" PreviewMouseLeftButtonDown="BoardNode_PreviewMouseDown" PreviewMouseRightButtonDown="BoardNode_PreviewRightDown">
                             <Border.Style><Style TargetType="Border"><Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/><Style.Triggers><DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter Property="BorderBrush" Value="{StaticResource Accent}"/><Setter Property="BorderThickness" Value="2.5"/></DataTrigger><DataTrigger Binding="{Binding IsHighlighted}" Value="True"><Setter Property="BorderBrush" Value="{StaticResource Warning}"/><Setter Property="BorderThickness" Value="3"/></DataTrigger></Style.Triggers></Style></Border.Style>
                             <Border.ContextMenu><ContextMenu>
+                                <MenuItem Header="Figur erstellen">
+                                    <MenuItem Header="Hauptfigur" Click="BoardNodeMenu_Click" Tag="MainCharacter"/>
+                                    <MenuItem Header="Nebenfigur" Click="BoardNodeMenu_Click" Tag="SideCharacter"/>
+                                    <MenuItem Header="Antagonist" Click="BoardNodeMenu_Click" Tag="Antagonist"/>
+                                    <MenuItem Header="Unterstützende Figur" Click="BoardNodeMenu_Click" Tag="SupportingCharacter"/>
+                                    <MenuItem Header="Charakteridee" Click="BoardNodeMenu_Click" Tag="CharacterIdea"/>
+                                    <MenuItem Header="Charakter (allgemein)" Click="BoardNodeMenu_Click" Tag="Character"/>
+                                </MenuItem>
+                                <MenuItem Header="Welt erstellen">
+                                    <MenuItem Header="Welt" Click="BoardNodeMenu_Click" Tag="World"/>
+                                    <MenuItem Header="Kontinent" Click="BoardNodeMenu_Click" Tag="Continent"/>
+                                    <MenuItem Header="Land" Click="BoardNodeMenu_Click" Tag="Country"/>
+                                    <MenuItem Header="Königreich" Click="BoardNodeMenu_Click" Tag="Kingdom"/>
+                                    <MenuItem Header="Stadt / Dorf" Click="BoardNodeMenu_Click" Tag="City"/>
+                                    <MenuItem Header="Ort" Click="BoardNodeMenu_Click" Tag="Location"/>
+                                    <MenuItem Header="Fraktion" Click="BoardNodeMenu_Click" Tag="Faction"/>
+                                    <MenuItem Header="Kultur / Religion" Click="BoardNodeMenu_Click" Tag="Culture"/>
+                                    <MenuItem Header="Magiesystem" Click="BoardNodeMenu_Click" Tag="MagicSystem"/>
+                                    <MenuItem Header="Technologie / Lore" Click="BoardNodeMenu_Click" Tag="Technology"/>
+                                </MenuItem>
+                                <MenuItem Header="Story erstellen">
+                                    <MenuItem Header="Kapitel" Click="BoardNodeMenu_Click" Tag="Chapter"/>
+                                    <MenuItem Header="Szene" Click="BoardNodeMenu_Click" Tag="Scene"/>
+                                    <MenuItem Header="Ereignis" Click="BoardNodeMenu_Click" Tag="Event"/>
+                                    <MenuItem Header="Plot / Nebenplot" Click="BoardNodeMenu_Click" Tag="Plot"/>
+                                    <MenuItem Header="Konflikt / Wendepunkt" Click="BoardNodeMenu_Click" Tag="Conflict"/>
+                                    <MenuItem Header="Geheimnis" Click="BoardNodeMenu_Click" Tag="Mystery"/>
+                                    <MenuItem Header="Gegenstand" Click="BoardNodeMenu_Click" Tag="Object"/>
+                                </MenuItem>
                                 <MenuItem Header="Neues verbundenes Schreibfeld" Click="BoardNodeMenu_Click" Tag="Note"/>
-                                <MenuItem Header="Neue Hauptfigur erstellen" Click="BoardNodeMenu_Click" Tag="MainCharacter"/>
-                                <MenuItem Header="Neue Nebenfigur erstellen" Click="BoardNodeMenu_Click" Tag="SideCharacter"/>
-                                <MenuItem Header="Neuen Charakter erstellen" Click="BoardNodeMenu_Click" Tag="Character"/>
-                                <MenuItem Header="Neuen Ort erstellen" Click="BoardNodeMenu_Click" Tag="Location"/>
-                                <MenuItem Header="Neue Welt erstellen" Click="BoardNodeMenu_Click" Tag="World"/>
-                                <MenuItem Header="Neue Fraktion erstellen" Click="BoardNodeMenu_Click" Tag="Faction"/>
-                                <MenuItem Header="Neues Ereignis erstellen" Click="BoardNodeMenu_Click" Tag="Event"/>
-                                <MenuItem Header="Neues Kapitel erstellen" Click="BoardNodeMenu_Click" Tag="Chapter"/>
-                                <MenuItem Header="Neue Szene erstellen" Click="BoardNodeMenu_Click" Tag="Scene"/>
-                                <MenuItem Header="Neuen Gegenstand erstellen" Click="BoardNodeMenu_Click" Tag="Object"/>
-                                <MenuItem Header="Neues Geheimnis erstellen" Click="BoardNodeMenu_Click" Tag="Mystery"/>
-                                <MenuItem Header="Neuen Konflikt erstellen" Click="BoardNodeMenu_Click" Tag="Conflict"/>
                                 <MenuItem Header="Neue Idee erstellen" Click="BoardNodeMenu_Click" Tag="Idea"/>
                                 <MenuItem Header="Neue Recherche erstellen" Click="BoardNodeMenu_Click" Tag="Research"/>
+                                <Separator/>
                                 <MenuItem Header="Verbindung erstellen" Click="BoardNodeMenu_Click" Tag="Connect"/>
                                 <MenuItem Header="Duplizieren" Click="BoardNodeMenu_Click" Tag="Duplicate"/>
+                                <MenuItem Header="Kopieren" Click="BoardNodeMenu_Click" Tag="Copy"/>
+                                <MenuItem Header="Ausschneiden" Click="BoardNodeMenu_Click" Tag="Cut"/>
+                                <MenuItem Header="Einfügen" Click="BoardNodeMenu_Click" Tag="Paste"/>
                                 <MenuItem Header="Einklappen / Ausklappen" Click="BoardNodeMenu_Click" Tag="Collapse"/>
+                                <MenuItem Header="Kinder ein-/ausblenden" Click="BoardNodeMenu_Click" Tag="Children"/>
+                                <MenuItem Header="Als Charakterprofil anlegen" Click="BoardNodeMenu_Click" Tag="Convert"/>
+                                <MenuItem Header="Zum Elternpanel" Click="BoardNodeMenu_Click" Tag="Parent"/>
+                                <MenuItem Header="Zum Hauptpanel (Buch)" Click="BoardNodeMenu_Click" Tag="Book"/>
                                 <MenuItem Header="Löschen" Click="BoardNodeMenu_Click" Tag="Delete"/>
                             </ContextMenu></Border.ContextMenu>
                             <DockPanel Margin="0">
@@ -261,7 +305,7 @@
         <StackPanel DockPanel.Dock="Top">
             <TextBlock Margin="10,8,0,0" FontSize="13" Foreground="{StaticResource FgMuted}"><Run Text="ALICE – Advanced Literary &amp; Creative Intelligence Studio" Foreground="{StaticResource FgMain}" FontWeight="SemiBold"/><Run Text="  •  "/><Run Text="{Binding ProjectTitle}"/></TextBlock>
             <Menu Margin="4,2,4,0" Background="Transparent">
-                <MenuItem Header="Projekt" Style="{StaticResource TopMenuItem}"><MenuItem Header="Neu…" Command="{Binding NewProjectCommand}"/><MenuItem Header="Öffnen…" Command="{Binding OpenProjectCommand}"/><MenuItem Header="Speichern" Command="{Binding SaveCommand}"/><Separator/><MenuItem Header="Als PDF exportieren…" Command="{Binding ExportProjectCommand}" CommandParameter="Pdf"/><MenuItem Header="Als DOCX exportieren…" Command="{Binding ExportProjectCommand}" CommandParameter="Docx"/><MenuItem Header="Als EPUB exportieren…" Command="{Binding ExportProjectCommand}" CommandParameter="Epub"/><MenuItem Header="Als TXT exportieren…" Command="{Binding ExportProjectCommand}" CommandParameter="Txt"/><MenuItem Header="Als Markdown exportieren…" Command="{Binding ExportProjectCommand}" CommandParameter="Markdown"/><Separator/><MenuItem Header="Importieren (TXT/MD/DOCX/RTF)…" Command="{Binding ImportProjectCommand}"/><Separator/><MenuItem Header="Backup jetzt erstellen" Command="{Binding BackupNowCommand}"/><MenuItem Header="Backup wiederherstellen…" Command="{Binding RestoreCommand}"/><Separator/><MenuItem Header="Beenden" Command="{Binding ExitCommand}"/></MenuItem>
+                <MenuItem Header="Projekt" Style="{StaticResource TopMenuItem}"><MenuItem Header="Neu…" Command="{Binding NewProjectCommand}"/><MenuItem Header="Öffnen…" Command="{Binding OpenProjectCommand}"/><MenuItem Header="Speichern" Command="{Binding SaveCommand}"/><Separator/><MenuItem Header="Exportieren… (PDF/DOCX/RTF/ODT/TXT/MD/HTML/EPUB/ZIP)" Command="{Binding ExportProjectCommand}"/><Separator/><MenuItem Header="Importieren (TXT/MD/DOCX/RTF)…" Command="{Binding ImportProjectCommand}"/><Separator/><MenuItem Header="Backup jetzt erstellen" Command="{Binding BackupNowCommand}"/><MenuItem Header="Backup wiederherstellen…" Command="{Binding RestoreCommand}"/><Separator/><MenuItem Header="Beenden" Command="{Binding ExitCommand}"/></MenuItem>
                 <MenuItem Header="Bearbeiten" Style="{StaticResource TopMenuItem}"><MenuItem Header="Rückgängig" Command="{Binding UndoCommand}"/><MenuItem Header="Wiederholen" Command="{Binding RedoCommand}"/><Separator/><MenuItem Header="Snapshot erstellen" Command="{Binding NewSnapshotCommand}"/></MenuItem>
                 <MenuItem Header="Ansicht" Style="{StaticResource TopMenuItem}"><MenuItem Header="Navigator" Command="{Binding ToggleNavigatorCommand}"/><MenuItem Header="Inspektor" Command="{Binding ToggleInspectorCommand}"/><MenuItem Header="KI-Panel" Command="{Binding ToggleAiCommand}"/><MenuItem Header="Fokusmodus" Command="{Binding ToggleFocusCommand}"/></MenuItem>
                 <MenuItem Header="Schreiben" Style="{StaticResource TopMenuItem}"><MenuItem Header="Editor" Command="{Binding ShowEditorCommand}"/><MenuItem Header="Corkboard" Command="{Binding ShowCorkboardCommand}"/><MenuItem Header="Outliner" Command="{Binding ShowOutlinerCommand}"/></MenuItem>

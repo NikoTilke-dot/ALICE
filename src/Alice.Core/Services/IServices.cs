@@ -57,6 +57,7 @@ public interface IImportExportService
 {
     Task<AliceProject> ImportAsync(string filePath, ImportFormat format, CancellationToken ct = default);
     Task ExportAsync(AliceProject project, string outputPath, ExportFormat format, CancellationToken ct = default);
+    Task ExportAsync(AliceProject project, string outputPath, ExportFormat format, ExportOptions options, CancellationToken ct = default);
 }
 
 /// <summary>Projektsuche.</summary>

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Shapes;
@@ -263,6 +264,28 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    // ---------- Storyboard als PNG (RenderTargetBitmap der Canvas) ----------
+    private void BoardExportPng_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsBoardActive()) return;
+        try
+        {
+            var world = FindByName(this, "BoardWorld") as FrameworkElement;
+            var viewport = FindByName(this, "BoardViewport") as FrameworkElement;
+            if (world is null || viewport is null) return;
+            // Auf sichtbaren Bereich rendern (Canvas-Transform bleibt erhalten)
+            var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap((int)viewport.ActualWidth, (int)viewport.ActualHeight, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            rtb.Render(viewport);
+            var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "PNG (*.png)|*.png", FileName = "storyboard.png", InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) };
+            if (dlg.ShowDialog() != true) return;
+            using var fs = File.Create(dlg.FileName); enc.Save(fs);
+            if (_vm.CurrentWorkspace is StoryboardViewModel bvm) bvm.StatusText = "Storyboard-PNG exportiert: " + dlg.FileName;
+        }
+        catch (Exception ex) { if (_vm.CurrentWorkspace is StoryboardViewModel bvm) bvm.StatusText = "PNG-Export-Fehler: " + ex.Message; }
+    }
+
     // ---------- Kontextmenüs (Click-Handler: Command-Bindungen lösen im Popup nicht auf) ----------
     private void BoardCanvasMenu_Click(object sender, RoutedEventArgs e)
     {
@@ -291,7 +314,14 @@ public partial class MainWindow : Window
         {
             case "Connect": bvm.StartConnectFrom(node); break;
             case "Duplicate": bvm.DuplicateSelectedCommand.Execute(null); break;
+            case "Copy": bvm.CopySelectedCommand.Execute(null); break;
+            case "Cut": bvm.CutSelectedCommand.Execute(null); break;
+            case "Paste": bvm.PasteNodeCommand.Execute(null); break;
             case "Collapse": bvm.ToggleCollapseSelectedCommand.Execute(null); break;
+            case "Children": bvm.ToggleChildrenCommand.Execute(null); break;
+            case "Convert": bvm.ConvertToCharacterCommand.Execute(null); break;
+            case "Parent": bvm.GoToParentCommand.Execute(null); break;
+            case "Book": bvm.GoToBookCommand.Execute(null); break;
             case "Delete": bvm.DeleteSelectedCommand.Execute(null); break;
             default: bvm.AddConnectedFromMenu(node, tag); break;
         }

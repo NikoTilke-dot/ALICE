@@ -151,6 +151,7 @@ public partial class StoryboardViewModel : ObservableObject
         foreach (var w in project.WorldEntries) LinkOptions.Add(new LinkedOption { Id = w.Id.ToString(), Display = "Welt: " + w.Title });
         foreach (var n in project.Nodes.Where(n => !n.IsFolder)) LinkOptions.Add(new LinkedOption { Id = n.Id.ToString(), Display = "Manuskript: " + n.Title });
         foreach (var t in project.TimelineEvents) LinkOptions.Add(new LinkedOption { Id = t.Id.ToString(), Display = "Zeitlinie: " + t.Title });
+        CustomTypes.Clear(); foreach (var t in project.CustomBoardTypes) CustomTypes.Add(t);
         foreach (var b in project.Whiteboards) Boards.Add(b);
         var active = project.Whiteboards.FirstOrDefault(b => b.Id == project.ActiveWhiteboardId) ?? project.Whiteboards[0];
         SetActiveBoard(active);
@@ -282,11 +283,26 @@ public partial class StoryboardViewModel : ObservableObject
     [RelayCommand] public void AddAtPending(object? type) => AddNodeAt(ParseType(type), PendingX, PendingY);
     private static BoardNodeType ParseType(object? t) => t switch { BoardNodeType b => b, string s when Enum.TryParse<BoardNodeType>(s, out var v) => v, _ => BoardNodeType.Note };
 
+    /// <summary>Freie Position neben dem Eltern-Panel suchen (keine Kollision, wenn vermeidbar).</summary>
+    private (double x, double y) FindFreePosition(BoardNodeVm source)
+    {
+        double[] dxs = [source.Width + 60, 0, source.Width + 60, 0, source.Width + 120];
+        double[] dys = [0, 160, 160, -160, 320];
+        foreach (var (dx, dy) in dxs.Zip(dys))
+        {
+            double x = source.X + dx, y = source.Y + dy;
+            bool clash = Nodes.Any(n => n.Id != source.Id && x < n.X + n.Width && x + 220 > n.X && y < n.Y + n.Height && y + 120 > n.Y);
+            if (!clash) return (x, y);
+        }
+        return (source.X + source.Width + 60, source.Y + Nodes.Count(c => c.Model.GroupId == source.Model.GroupId) * 10);
+    }
+
     public BoardNodeVm AddConnectedNode(BoardNodeVm? source, BoardNodeType type)
     {
         if (source is null || ActiveBoard is null) return null!;
         BeginChange();
-        var vm = AddNodeAt(type, source.X + source.Width + 60, source.Y);
+        var (px, py) = FindFreePosition(source);
+        var vm = AddNodeAt(type, px, py);
         var conn = new BoardConnection { FromNodeId = source.Id, ToNodeId = vm.Id };
         ActiveBoard.Connections.Add(conn);
         Connections.Add(new BoardConnectionVm(conn, FindNode));
@@ -448,6 +464,99 @@ public partial class StoryboardViewModel : ObservableObject
         SetActiveBoard(_project.Whiteboards[0]);
     }
     public void SwitchBoard(Whiteboard wb) => SetActiveBoard(wb);
+
+    // ---------- Navigation / Kinder / Clipboard / Umbau ----------
+    [RelayCommand] public void GoToParent()
+    {
+        var s = SelectedNode; if (s is null || ActiveBoard is null) return;
+        var parentConn = ActiveBoard.Connections.FirstOrDefault(c => c.ToNodeId == s.Id);
+        var parent = parentConn is null ? null : FindNode(parentConn.FromNodeId);
+        if (parent is not null) GoToNode(parent); else StatusText = "Kein Eltern-Panel (Root).";
+    }
+    [RelayCommand] public void GoToBook()
+    {
+        var book = Nodes.FirstOrDefault(n => n.Model.IsBookPanel);
+        if (book is not null) GoToNode(book);
+    }
+    [RelayCommand] public void FocusSelected() { if (SelectedNode is not null) GoToNode(SelectedNode); }
+    [RelayCommand] public void ToggleChildren()
+    {
+        var s = SelectedNode; if (s is null || ActiveBoard is null) return;
+        BeginChange();
+        var childIds = ActiveBoard.Connections.Where(c => c.FromNodeId == s.Id).Select(c => c.ToNodeId).ToHashSet();
+        var anyVisible = Nodes.Any(n => childIds.Contains(n.Id) && n.IsVisible);
+        foreach (var n in Nodes.Where(n => childIds.Contains(n.Id))) n.IsVisible = !anyVisible;
+        EndChange(); StatusText = anyVisible ? "Kinder ausgeblendet." : "Kinder angezeigt.";
+    }
+    private BoardNode? _clipboardNode;
+    [RelayCommand] public void CopySelected() { if (SelectedNode is not null) { _clipboardNode = JsonSerializer.Deserialize<BoardNode>(JsonSerializer.Serialize(SelectedNode.Model)); StatusText = "Panel kopiert."; } }
+    [RelayCommand] public void CutSelected() { CopySelected(); DeleteSelectedCommandVoid(); }
+    private void DeleteSelectedCommandVoid() => DeleteSelectedCommand.Execute(null);
+    [RelayCommand] public void PasteNode()
+    {
+        if (_clipboardNode is null || ActiveBoard is null) return;
+        BeginChange();
+        var copy = JsonSerializer.Deserialize<BoardNode>(JsonSerializer.Serialize(_clipboardNode))!;
+        copy.Id = Guid.NewGuid(); copy.Title += " (Einfügen)"; copy.X = PendingX; copy.Y = PendingY;
+        ActiveBoard.Nodes.Add(copy); var vm = new BoardNodeVm(copy); Nodes.Add(vm); SelectOnly(vm); EndChange();
+    }
+    [RelayCommand] public void ConvertToCharacter()
+    {
+        var s = SelectedNode; if (s is null || _project is null) return;
+        var ch = new Character { Name = s.Title, Description = s.Text, Notes = "Aus Storyboard-Panel erzeugt." };
+        _project.Characters.Add(ch);
+        s.Model.LinkKind = BoardLinkKind.Character; s.Model.LinkId = ch.Id.ToString();
+        s.LinkPreviewText = LinkedPreview(s);
+        StatusText = "Panel als Charakterprofil angelegt und verknüpft: " + ch.Name;
+    }
+    /// <summary>Hierarchisches Auto-Layout (explizit aufgerufen, sonst bleibt alles frei).</summary>
+    [RelayCommand] public void AutoLayout()
+    {
+        if (ActiveBoard is null || Nodes.Count == 0) return;
+        BeginChange();
+        var children = ActiveBoard.Connections.GroupBy(c => c.FromNodeId).ToDictionary(g => g.Key, g => g.Select(c => c.ToNodeId).ToList());
+        var depth = new Dictionary<Guid, int>();
+        void SetDepth(Guid id, int d) { depth[id] = d; if (children.TryGetValue(id, out var kids)) foreach (var k in kids) SetDepth(k, d + 1); }
+        var book = Nodes.FirstOrDefault(n => n.Model.IsBookPanel) ?? Nodes.First();
+        SetDepth(book.Id, 0);
+        foreach (var n in Nodes) if (!depth.ContainsKey(n.Id)) SetDepth(n.Id, 0);
+        var counters = new Dictionary<int, int>();
+        foreach (var n in Nodes.OrderBy(n => depth[n.Id]))
+        {
+            var d = depth[n.Id]; counters.TryGetValue(d, out var idx); counters[d] = idx + 1;
+            n.X = 60 + d * 300; n.Y = 60 + idx * 200;
+        }
+        EndChange(); ZoomFit(); StatusText = "Hierarchisches Layout angewendet (manuell, verschiebbar).";
+    }
+    [RelayCommand] public void CompactView() { foreach (var n in Nodes) n.IsCollapsed = !n.Model.IsBookPanel; ApplyFilter(); StatusText = "Kompakte Ansicht: alle Panels eingeklappt."; }
+
+    // ---------- Benutzerdefinierte Panel-Typen ----------
+    [ObservableProperty] private string _customTypeName = "";
+    [ObservableProperty] private string _customTypeColor = "#9FA2BC";
+    [ObservableProperty] private string _customTypeSymbol = "\uE70B";
+    [ObservableProperty] private ObservableCollection<CustomBoardType> _customTypes = [];
+    public IReadOnlyList<string> CustomColorPalette => AccentPalette;
+    [RelayCommand] public void SetCustomTypeColor(string? hex) { if (!string.IsNullOrWhiteSpace(hex)) CustomTypeColor = hex; }
+    [RelayCommand] public void AddCustomType()
+    {
+        if (_project is null || string.IsNullOrWhiteSpace(CustomTypeName)) { StatusText = "Bitte Namen für den eigenen Typ angeben."; return; }
+        var t = new CustomBoardType { Name = CustomTypeName.Trim(), Color = CustomTypeColor, Symbol = CustomTypeSymbol };
+        _project.CustomBoardTypes.Add(t); CustomTypes.Add(t);
+        CustomTypeName = ""; StatusText = "Eigener Panel-Typ gespeichert: " + t.Name;
+    }
+    /// <summary>Node aus benutzerdefiniertem Typ am Eltern-Panel erstellen.</summary>
+    public BoardNodeVm AddConnectedCustom(BoardNodeVm? source, CustomBoardType type)
+    {
+        if (source is null || ActiveBoard is null) return null!;
+        BeginChange();
+        var (px, py) = FindFreePosition(source);
+        var node = new BoardNode { Title = type.Name, NodeType = BoardNodeType.Custom, Category = type.Name, X = px, Y = py, Width = 220, Height = 120, AccentColor = type.Color, Symbol = type.Symbol, ZIndex = Nodes.Count + 1 };
+        ActiveBoard.Nodes.Add(node); var vm = new BoardNodeVm(node); Nodes.Add(vm);
+        var conn = new BoardConnection { FromNodeId = source.Id, ToNodeId = vm.Id };
+        ActiveBoard.Connections.Add(conn); Connections.Add(new BoardConnectionVm(conn, FindNode));
+        SelectOnly(vm); EndChange(); return vm;
+    }
+    [RelayCommand] public void AddConnectedCustomSelected(CustomBoardType? t) { if (t is not null && SelectedNode is not null) AddConnectedCustom(SelectedNode, t); }
 
     // ---------- Verknüpfung mit ALICE-Objekten ----------
     public string LinkedPreview(BoardNodeVm vm)

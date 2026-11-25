@@ -24,6 +24,8 @@ public sealed class AliceProject
     public List<StoryArc> StoryArcs { get; set; } = [];
     public List<Whiteboard> Whiteboards { get; set; } = [];
     public Guid? ActiveWhiteboardId { get; set; }
+    public List<CustomBoardType> CustomBoardTypes { get; set; } = [];
+    public string ViewPreference { get; set; } = "Freie Canvas";
     public List<string> CustomCategories { get; set; } = [];
     public List<string> CustomStatuses { get; set; } = [];
     public Dictionary<string, string> CustomFields { get; set; } = new();

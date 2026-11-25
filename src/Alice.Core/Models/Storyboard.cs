@@ -1,7 +1,7 @@
 namespace Alice.Core.Models;
 
 /// <summary>Typ eines Storyboard-Nodes (Vorlage mit Farbe + Symbol).</summary>
-public enum BoardNodeType { Book, MainCharacter, SideCharacter, Note, Character, Location, World, Faction, Event, Chapter, Scene, Object, Mystery, Conflict, Idea, Research, Custom }
+public enum BoardNodeType { Book, MainCharacter, SideCharacter, Antagonist, SupportingCharacter, CharacterIdea, Note, Character, Location, World, Continent, Country, Kingdom, City, Village, Faction, Culture, Religion, MagicSystem, Technology, Lore, Event, Chapter, Scene, Plot, Subplot, Conflict, TurningPoint, Object, Mystery, Idea, Research, Custom }
 
 /// <summary>Typ einer Verbindung zwischen Nodes.</summary>
 public enum BoardConnectionKind { Normal, ParentChild, Dependency, Relation, Temporal, Conflict, Reference, Custom }
@@ -19,12 +19,28 @@ public static class BoardNodeTypes
         new(BoardNodeType.Book, "Buch", "#8B7CF0", "\uE8F1"),
         new(BoardNodeType.MainCharacter, "Hauptfigur", "#E05C7A", "\uE77B"),
         new(BoardNodeType.SideCharacter, "Nebenfigur", "#F0A35E", "\uE77B"),
+        new(BoardNodeType.Antagonist, "Antagonist", "#B91C1C", "\uE77B"),
+        new(BoardNodeType.SupportingCharacter, "Unterstützende Figur", "#FB7185", "\uE77B"),
+        new(BoardNodeType.CharacterIdea, "Charakteridee", "#F9A8D4", "\uE854"),
         new(BoardNodeType.Note, "Allgemeine Notiz", "#5B8DEF", "\uE70B"),
         new(BoardNodeType.Character, "Charakter", "#E05C7A", "\uE77B"),
         new(BoardNodeType.Location, "Ort", "#2EA8A0", "\uE707"),
         new(BoardNodeType.World, "Welt / Worldbuilding", "#8B7CF0", "\uE91B"),
+        new(BoardNodeType.Continent, "Kontinent", "#34D399", "\uE707"),
+        new(BoardNodeType.Country, "Land", "#F59E0B", "\uE707"),
+        new(BoardNodeType.Kingdom, "Königreich", "#FBBF24", "\uE74C"),
+        new(BoardNodeType.City, "Stadt", "#38BDF8", "\uE707"),
+        new(BoardNodeType.Village, "Dorf", "#A3E635", "\uE707"),
         new(BoardNodeType.Faction, "Fraktion", "#F0A35E", "\uE716"),
+        new(BoardNodeType.Culture, "Kultur", "#C084FC", "\uE716"),
+        new(BoardNodeType.Religion, "Religion", "#E7C3F5", "\uE716"),
+        new(BoardNodeType.MagicSystem, "Magiesystem", "#818CF8", "\uE9D9"),
+        new(BoardNodeType.Technology, "Technologie", "#94A3B8", "\uE9B9"),
+        new(BoardNodeType.Lore, "Lore", "#A78BFA", "\uE91B"),
         new(BoardNodeType.Event, "Ereignis", "#E0C45C", "\uE853"),
+        new(BoardNodeType.Plot, "Plot", "#F472B6", "\uE853"),
+        new(BoardNodeType.Subplot, "Nebenplot", "#DB2777", "\uE853"),
+        new(BoardNodeType.TurningPoint, "Wendepunkt", "#F97316", "\uE853"),
         new(BoardNodeType.Chapter, "Kapitel", "#7C7CF4", "\uE8F1"),
         new(BoardNodeType.Scene, "Szene", "#4ADE80", "\uE8F1"),
         new(BoardNodeType.Object, "Gegenstand", "#9FA2BC", "\uE8F1"),
@@ -118,6 +134,16 @@ public sealed class BoardGroup
     public double Height { get; set; } = 280;
     public string Color { get; set; } = "#2A2452";
     public bool IsCollapsed { get; set; }
+}
+
+/// <summary>Benutzerdefinierter Panel-Typ (dauerhaft im Projekt gespeichert).</summary>
+public sealed class CustomBoardType
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Name { get; set; } = "Eigener Typ";
+    public string Symbol { get; set; } = "\uE70B";
+    public string Color { get; set; } = "#9FA2BC";
+    public string Description { get; set; } = string.Empty;
 }
 
 /// <summary>Ein Whiteboard (Canvas) mit eigenem Pan-/Zoom-Zustand.</summary>

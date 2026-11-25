@@ -259,7 +259,7 @@ public sealed class StoryboardTests
     [Fact]
     public void BoardNodeTypes_has14()
     {
-        Assert.Equal(17, BoardNodeTypes.All.Count);
+        Assert.Equal(33, BoardNodeTypes.All.Count);
         Assert.Equal("Buch", BoardNodeTypes.LabelOf(BoardNodeType.Book));
         Assert.Equal("Hauptfigur", BoardNodeTypes.LabelOf(BoardNodeType.MainCharacter));
         Assert.Equal("Nebenfigur", BoardNodeTypes.LabelOf(BoardNodeType.SideCharacter));
@@ -296,5 +296,55 @@ public sealed class StoryboardTests
         var back = System.Text.Json.JsonSerializer.Deserialize<AliceProject>(json)!;
         Assert.Single(back.Whiteboards);
         Assert.Equal(p.ActiveWhiteboardId, back.ActiveWhiteboardId);
+    }
+}
+
+public sealed class ExportFormatTests
+{
+    private static AliceProject Sample()
+    {
+        var p = new AliceProject { Title = "Testbuch", Author = "Autor" };
+        var ch = new ManuscriptNode { Title = "Kapitel 1", Kind = NodeKind.Chapter };
+        var sc = new ManuscriptNode { Title = "Szene 1", Kind = NodeKind.Scene, ParentId = ch.Id, Content = "Es war einmal." };
+        p.Nodes.Add(ch); p.Nodes.Add(sc);
+        var wb = new Whiteboard { Title = "Plot" };
+        var book = new BoardNode { Title = "Testbuch", NodeType = BoardNodeType.Book, IsBookPanel = true, X = 60, Y = 60, Width = 360, Height = 170 };
+        var hero = new BoardNode { Title = "Held", NodeType = BoardNodeType.MainCharacter, X = 500, Y = 60 };
+        wb.Nodes.Add(book); wb.Nodes.Add(hero);
+        wb.Connections.Add(new BoardConnection { FromNodeId = book.Id, ToNodeId = hero.Id });
+        p.Whiteboards.Add(wb);
+        return p;
+    }
+
+    [Theory]
+    [InlineData(ExportFormat.Pdf, ".pdf")]
+    [InlineData(ExportFormat.Docx, ".docx")]
+    [InlineData(ExportFormat.Txt, ".txt")]
+    [InlineData(ExportFormat.Markdown, ".md")]
+    [InlineData(ExportFormat.Rtf, ".rtf")]
+    [InlineData(ExportFormat.Odt, ".odt")]
+    [InlineData(ExportFormat.Html, ".html")]
+    [InlineData(ExportFormat.Epub, ".epub")]
+    [InlineData(ExportFormat.Zip, ".zip")]
+    public async Task Export_allFormats_nonEmpty(ExportFormat format, string ext)
+    {
+        var svc = new ImportExportService();
+        var dir = Directory.CreateTempSubdirectory().FullName;
+        var path = Path.Combine(dir, "out" + ext);
+        await svc.ExportAsync(Sample(), path, format, new ExportOptions { Scope = "Gesamtes Buch", IncludeToc = true, TitlePage = true, PageNumbers = true, ChapterNewPage = true, PageFormat = "A4", FontSize = 11 });
+        Assert.True(File.Exists(path));
+        Assert.True(new FileInfo(path).Length > 50);
+        Directory.Delete(dir, true);
+    }
+
+    [Fact]
+    public async Task Export_pdf_hasHeader()
+    {
+        var svc = new ImportExportService();
+        var dir = Directory.CreateTempSubdirectory().FullName;
+        var path = Path.Combine(dir, "out.pdf");
+        await svc.ExportAsync(Sample(), path, ExportFormat.Pdf);
+        Assert.StartsWith("%PDF-", (await File.ReadAllTextAsync(path))[..5]);
+        Directory.Delete(dir, true);
     }
 }
