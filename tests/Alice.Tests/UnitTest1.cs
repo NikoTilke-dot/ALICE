@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Alice.Core.Enums;
 using Alice.Core.Models;
 using Alice.Core.Templates;
@@ -346,5 +347,53 @@ public sealed class ExportFormatTests
         await svc.ExportAsync(Sample(), path, ExportFormat.Pdf);
         Assert.StartsWith("%PDF-", (await File.ReadAllTextAsync(path))[..5]);
         Directory.Delete(dir, true);
+    }
+}
+
+public sealed class HierarchyTests
+{
+    [Fact]
+    public void EnsureParents_derivesFromConnections_bookStaysRoot()
+    {
+        var wb = new Whiteboard();
+        var book = new BoardNode { Title = "Buch", NodeType = BoardNodeType.Book, IsBookPanel = true };
+        var hero = new BoardNode { Title = "Held" };
+        var secret = new BoardNode { Title = "Geheimnis" };
+        var alone = new BoardNode { Title = "Unabhängig" };
+        wb.Nodes.AddRange([book, hero, secret, alone]);
+        wb.Connections.Add(new BoardConnection { FromNodeId = book.Id, ToNodeId = hero.Id });
+        wb.Connections.Add(new BoardConnection { FromNodeId = hero.Id, ToNodeId = secret.Id });
+        BoardHierarchy.EnsureParents(wb);
+        Assert.Null(book.ParentId);
+        Assert.Equal(book.Id, hero.ParentId);
+        Assert.Equal(hero.Id, secret.ParentId);
+        Assert.Null(alone.ParentId); // keine erfundene Verbindung für unabhängige Panels
+    }
+
+    [Fact]
+    public void EnsureConnections_createsMissingParentLinks()
+    {
+        var wb = new Whiteboard();
+        var book = new BoardNode { Title = "Buch", IsBookPanel = true };
+        var hero = new BoardNode { Title = "Held", ParentId = book.Id };
+        wb.Nodes.AddRange([book, hero]);
+        BoardHierarchy.EnsureConnections(wb);
+        Assert.Single(wb.Connections);
+        BoardHierarchy.EnsureConnections(wb); // idempotent
+        Assert.Single(wb.Connections);
+    }
+
+    [Fact]
+    public void ParentId_survivesRoundtrip()
+    {
+        var wb = new Whiteboard();
+        var book = new BoardNode { Title = "Buch", IsBookPanel = true };
+        var hero = new BoardNode { Title = "Held", ParentId = book.Id };
+        wb.Nodes.AddRange([book, hero]);
+        var p = new AliceProject { Title = "T" }; p.Whiteboards.Add(wb);
+        var json = JsonSerializer.Serialize(p);
+        var back = JsonSerializer.Deserialize<AliceProject>(json)!;
+        var heroBack = back.Whiteboards[0].Nodes.Single(n => n.Title == "Held");
+        Assert.Equal(book.Id, heroBack.ParentId);
     }
 }

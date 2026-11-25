@@ -90,6 +90,8 @@ public sealed class BoardNode
     public string AccentColor { get; set; } = string.Empty; // Kategorie-Farbe; leer = Typ-Farbe
     public double X { get; set; }
     public double Y { get; set; }
+    /// <summary>Parent-Panel dieser Zeile. Null = Root (Buchpanel) oder unabhängig (per Canvas erstellt, keine erfundene Verbindung).</summary>
+    public Guid? ParentId { get; set; }
     public double Width { get; set; } = 220;
     public double Height { get; set; } = 120;
     public bool IsCollapsed { get; set; }
@@ -108,6 +110,34 @@ public sealed class BoardNode
     public double CenterY => Y + Height / 2;
     public double RightX => X + Width;
     public double MidY => Y + Height / 2;
+}
+
+/// <summary>Hierarchie-Helfer: Parent-IDs aus bestehenden Verbindungen ableiten (Migration),
+/// Verbindungen aus Parent-IDs erzeugen. Erfindet niemals neue Beziehungen aus Position.</summary>
+public static class BoardHierarchy
+{
+    /// <summary>Für Nodes ohne ParentId, die eine eingehende Verbindung haben, Parent aus der Verbindung übernehmen.
+    /// Das Buchpanel (IsBookPanel) bleibt immer ohne Parent. Keine neuen Verbindungen, keine Positionsheuristik.</summary>
+    public static void EnsureParents(Whiteboard board)
+    {
+        var byId = board.Nodes.ToDictionary(n => n.Id);
+        foreach (var c in board.Connections)
+        {
+            if (byId.TryGetValue(c.ToNodeId, out var child) && !child.IsBookPanel && child.ParentId is null
+                && byId.ContainsKey(c.FromNodeId))
+                child.ParentId = c.FromNodeId;
+        }
+    }
+    /// <summary>Erzeugt fehlende Parent→Kind-Verbindungen (idempotent, keine Duplikate).</summary>
+    public static void EnsureConnections(Whiteboard board)
+    {
+        var existing = board.Connections.Select(c => (c.FromNodeId, c.ToNodeId)).ToHashSet();
+        foreach (var n in board.Nodes)
+        {
+            if (n.ParentId is { } pid && existing.Add((pid, n.Id)) && board.Nodes.Any(x => x.Id == pid))
+                board.Connections.Add(new BoardConnection { FromNodeId = pid, ToNodeId = n.Id });
+        }
+    }
 }
 
 /// <summary>Verbindungslinie zwischen zwei Nodes.</summary>

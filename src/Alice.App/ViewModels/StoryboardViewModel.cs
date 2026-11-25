@@ -160,11 +160,18 @@ public partial class StoryboardViewModel : ObservableObject
     /// <summary>Großes Buch-Panel mit aktuellem Buchtitel als Standard-Startpunkt (wird nie gelöscht).</summary>
     public BoardNode EnsureBookPanel(Whiteboard board)
     {
-        var existing = board.Nodes.FirstOrDefault(n => n.IsBookPanel || n.NodeType == BoardNodeType.Book);
         var title = _project?.Title ?? board.Title;
+        var existing = board.Nodes.FirstOrDefault(n => n.IsBookPanel || n.NodeType == BoardNodeType.Book);
+        // Nur ein Root pro Board: Duplikate entfernen
+        foreach (var extra in board.Nodes.Where(n => n != existing && (n.IsBookPanel || n.NodeType == BoardNodeType.Book)).ToList())
+        {
+            board.Connections.RemoveAll(c => c.FromNodeId == extra.Id || c.ToNodeId == extra.Id);
+            board.Nodes.Remove(extra);
+        }
         if (existing is not null)
         {
             existing.IsBookPanel = true;
+            existing.ParentId = null; // Root hat keinen Parent
             if (existing.Width < 300) { existing.Width = 360; existing.Height = 170; }
             if (string.IsNullOrWhiteSpace(existing.Title) || existing.Title == "Buch") existing.Title = title;
             return existing;
@@ -185,6 +192,10 @@ public partial class StoryboardViewModel : ObservableObject
     {
         if (_project is not null) _project.ActiveWhiteboardId = board.Id;
         EnsureBookPanel(board);
+        // Migration: ParentIDs aus bestehenden Verbindungen ableiten, fehlende Parent-Verbindungen erzeugen.
+        // Position wird NIE zur Verbindungsfindung verwendet. Unabhängige Panels bleiben unabhängig.
+        BoardHierarchy.EnsureParents(board);
+        BoardHierarchy.EnsureConnections(board);
         _suspendHistory = true;
         ActiveBoard = board;
         Zoom = board.Zoom <= 0 ? 1.0 : board.Zoom; PanX = board.PanX; PanY = board.PanY; ShowGrid = board.ShowGrid;
@@ -303,6 +314,7 @@ public partial class StoryboardViewModel : ObservableObject
         BeginChange();
         var (px, py) = FindFreePosition(source);
         var vm = AddNodeAt(type, px, py);
+        vm.Model.ParentId = source.Id; // Parent bereits beim Erstellen festgelegt (nicht später aus Position/Selection)
         var conn = new BoardConnection { FromNodeId = source.Id, ToNodeId = vm.Id };
         ActiveBoard.Connections.Add(conn);
         Connections.Add(new BoardConnectionVm(conn, FindNode));
@@ -327,18 +339,41 @@ public partial class StoryboardViewModel : ObservableObject
     {
         if (SelectedNode is null || ActiveBoard is null) return;
         if (SelectedNode.Model.IsBookPanel) { StatusText = "Das Buch-Panel (Buchtitel) kann nicht gelöscht werden."; return; }
-        BeginChange();
         var id = SelectedNode.Id;
-        ActiveBoard.Nodes.RemoveAll(n => n.Id == id);
-        ActiveBoard.Connections.RemoveAll(c => c.FromNodeId == id || c.ToNodeId == id);
-        Nodes.Remove(SelectedNode);
-        for (int i = Connections.Count - 1; i >= 0; i--) if (Connections[i].Model.FromNodeId == id || Connections[i].Model.ToNodeId == id) Connections.RemoveAt(i);
+        var descendants = CollectDescendants(id); // alle Unterpanels (Parent-Child-Kette)
+        var owner = System.Windows.Application.Current?.MainWindow;
+        var msg = descendants.Count == 0
+            ? "Panel + seine Verbindung(en) entfernen?"
+            : $"Das Panel hat {descendants.Count} Unterpanel(s). Diese werden mitgelöscht. Fortfahren?";
+        if (System.Windows.MessageBox.Show(owner, msg, "Panel löschen", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question) != System.Windows.MessageBoxResult.Yes)
+        { StatusText = "Löschen abgebrochen."; return; }
+        BeginChange();
+        var all = new HashSet<Guid>(descendants) { id };
+        ActiveBoard.Nodes.RemoveAll(n => all.Contains(n.Id));
+        ActiveBoard.Connections.RemoveAll(c => all.Contains(c.FromNodeId) || all.Contains(c.ToNodeId));
+        for (int i = Nodes.Count - 1; i >= 0; i--) if (all.Contains(Nodes[i].Id)) Nodes.RemoveAt(i);
+        for (int i = Connections.Count - 1; i >= 0; i--) if (all.Contains(Connections[i].Model.FromNodeId) || all.Contains(Connections[i].Model.ToNodeId)) Connections.RemoveAt(i);
         SelectedNode = null; EndChange();
+    }
+    private List<Guid> CollectDescendants(Guid root)
+    {
+        var result = new List<Guid>();
+        var stack = new Stack<Guid>(); stack.Push(root);
+        while (stack.Count > 0)
+        {
+            var cur = stack.Pop();
+            foreach (var child in ActiveBoard!.Nodes.Where(n => n.ParentId == cur && n.Id != cur).Select(n => n.Id)) { result.Add(child); stack.Push(child); }
+        }
+        return result;
     }
     [RelayCommand] public void DeleteSelectedConnection()
     {
         if (SelectedConnection is null || ActiveBoard is null) return;
-        BeginChange(); ActiveBoard.Connections.Remove(SelectedConnection.Model); Connections.Remove(SelectedConnection); SelectedConnection = null; EndChange();
+        BeginChange();
+        // ParentId mitlöschen, sonst würde EnsureConnections die Linie „auferstehen“ lassen.
+        var child = ActiveBoard.Nodes.FirstOrDefault(n => n.Id == SelectedConnection.Model.ToNodeId);
+        if (child is not null && child.ParentId == SelectedConnection.Model.FromNodeId) child.ParentId = null;
+        ActiveBoard.Connections.Remove(SelectedConnection.Model); Connections.Remove(SelectedConnection); SelectedConnection = null; EndChange();
     }
     [RelayCommand] public void ToggleCollapseSelected() { if (SelectedNode is not null) { SelectedNode.IsCollapsed = !SelectedNode.IsCollapsed; EndChange(); } }
 
@@ -469,7 +504,7 @@ public partial class StoryboardViewModel : ObservableObject
     [RelayCommand] public void GoToParent()
     {
         var s = SelectedNode; if (s is null || ActiveBoard is null) return;
-        var parentConn = ActiveBoard.Connections.FirstOrDefault(c => c.ToNodeId == s.Id);
+        var parentConn = ActiveBoard.Connections.FirstOrDefault(c => c.ToNodeId == s.Id) ?? (s.Model.ParentId is { } pid ? new BoardConnection { FromNodeId = pid, ToNodeId = s.Id } : null);
         var parent = parentConn is null ? null : FindNode(parentConn.FromNodeId);
         if (parent is not null) GoToNode(parent); else StatusText = "Kein Eltern-Panel (Root).";
     }
@@ -550,7 +585,7 @@ public partial class StoryboardViewModel : ObservableObject
         if (source is null || ActiveBoard is null) return null!;
         BeginChange();
         var (px, py) = FindFreePosition(source);
-        var node = new BoardNode { Title = type.Name, NodeType = BoardNodeType.Custom, Category = type.Name, X = px, Y = py, Width = 220, Height = 120, AccentColor = type.Color, Symbol = type.Symbol, ZIndex = Nodes.Count + 1 };
+        var node = new BoardNode { Title = type.Name, NodeType = BoardNodeType.Custom, Category = type.Name, X = px, Y = py, Width = 220, Height = 120, AccentColor = type.Color, Symbol = type.Symbol, ZIndex = Nodes.Count + 1, ParentId = source.Id };
         ActiveBoard.Nodes.Add(node); var vm = new BoardNodeVm(node); Nodes.Add(vm);
         var conn = new BoardConnection { FromNodeId = source.Id, ToNodeId = vm.Id };
         ActiveBoard.Connections.Add(conn); Connections.Add(new BoardConnectionVm(conn, FindNode));

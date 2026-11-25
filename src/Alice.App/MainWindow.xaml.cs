@@ -113,6 +113,8 @@ public partial class MainWindow : Window
             if (Math.Abs(pos0.X - _pendingStart.X) + Math.Abs(pos0.Y - _pendingStart.Y) > 4)
             {
                 bvm.BeginChange();
+                // Echter Drag startet: erst JETZT Capture ergreifen (auf der Viewport).
+                if (FindViewport() is FrameworkElement vp) vp.CaptureMouse();
                 _dragNode = _pendingNode; _dragSet = _pendingSet; _dragStart = _pendingStart; _pendingNode = null;
             }
             else return;
@@ -218,7 +220,8 @@ public partial class MainWindow : Window
         if (_pendingSet.Count == 0) _pendingSet = [(node, node.X, node.Y)];
         _pendingStart = e.GetPosition((Border)FindViewport()!);
         _highlighted.Add(node);
-        card.CaptureMouse();
+        // KEIN Capture beim Press! Capture erst bei echtem Drag (Schwelle) in PreviewMouseMove.
+        // Einfacher Klick darf niemals MouseCapture erhalten -> keine globalen Input-Locks.
         e.Handled = true;
     }
 
