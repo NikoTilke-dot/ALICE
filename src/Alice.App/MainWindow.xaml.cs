@@ -84,9 +84,11 @@ public partial class MainWindow : Window
         var bvm = BoardVmOf(viewport); if (bvm is null) return;
         viewport.Focus();
         // Klick auf freie Fläche (nicht auf Node/Verbindung): Pan mit Linksklick, wenn Hand-Werkzeug; sonst Auswahl aufheben
-        if (e.OriginalSource is Border || e.OriginalSource is Grid || e.OriginalSource == viewport)
+        if (IsOutsideNode(e.OriginalSource as DependencyObject))
         {
             // Canvas bewegen NUR mit Linksklick-Halten auf freier Fläche (getrennt von Panel-Drag).
+            // WICHTIG: NodeCard ist ein Border -> alte Pruefung fing ALLE Panel-Klicks als Canvas-Pan ab
+            // (Panel-Drag wurde nie gestartet = Canvas statt Panel bewegt).
             // Rechtsklick = kein Drag (Kontextmenü gehört zum Panel). Mittel/Space/Hand bleiben zusaetzlich.
             if (e.LeftButton == MouseButtonState.Pressed || e.MiddleButton == MouseButtonState.Pressed || _spaceDown || bvm.IsHandTool)
             {
@@ -205,6 +207,17 @@ public partial class MainWindow : Window
         return FindByName(this, "BoardViewport");
     }
     private DependencyObject? FindOverlay() => FindByName(this, "BoardOverlay");
+    /// True wenn der Klick NICHT auf Node/Port/Gruppe landet (freier Canvas).
+    private static bool IsOutsideNode(DependencyObject? src)
+    {
+        var cur = src;
+        while (cur is not null)
+        {
+            if (cur is FrameworkElement fe && (fe.Name == "NodeCard" || fe.Name == "GroupCard" || fe.Name == "ConnectPort")) return false;
+            cur = VisualTreeHelper.GetParent(cur);
+        }
+        return true;
+    }
     private static DependencyObject? FindByName(DependencyObject root, string name)
     {
         for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
@@ -245,7 +258,8 @@ public partial class MainWindow : Window
         if (bvm.HandleNodeClickForReparent(node)) { _boardState = BoardState.CreatingConnection; e.Handled = true; return; }
         if (bvm.HandleNodeClickForConnect(node)) { _boardState = BoardState.CreatingConnection; e.Handled = true; return; }
         if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift) bvm.ToggleSelect(node);
-        else if (!node.IsSelected) bvm.SelectOnly(node);
+        else bvm.SelectOnly(node); // normaler Klick = EINZEL-Auswahl (kein Block-Drag); Mehrfach nur mit Shift
+        _boardState = BoardState.Selecting;
         // Nur bei gedruecktem Linksklick AUF dem Panel + Bewegung > 4px wird gezogen.
         _pendingNode = node;
         _pendingSet = bvm.SelectedNodes.Select(n => (n, n.X, n.Y)).ToList();
