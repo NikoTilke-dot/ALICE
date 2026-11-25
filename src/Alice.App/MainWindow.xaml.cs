@@ -21,6 +21,7 @@ public partial class MainWindow : Window
     // Storyboard-Drag-Zustand
     private bool _panning; private Point _panStart; private double _panX0, _panY0;
     private BoardNodeVm? _dragNode; private Point _dragStart; private List<(BoardNodeVm Node, double X, double Y)> _dragSet = [];
+    private FrameworkElement? _dragCard; // Kartenelement des Drags (Capture-Ziel bei Drag-Start)
     private BoardNodeVm? _pendingNode; private Point _pendingStart; private List<(BoardNodeVm Node, double X, double Y)> _pendingSet = []; // Drag erst nach 4px Bewegung (kein Versehen bei Klick)
     private BoardNodeVm? _resizeNode; private double _resizeW, _resizeH;
     private BoardNodeVm? _portSource; private Line? _tempLine;
@@ -37,6 +38,10 @@ public partial class MainWindow : Window
         };
         PreviewKeyDown += MainWindow_PreviewKeyDown;
         PreviewKeyUp += MainWindow_PreviewKeyUp;
+        // Move/Up AUS FENSTER-Ebene: feuern immer (mit/ohne Capture aus dem Canvas-Tunnel),
+        // so dass Drags nicht nach dem ersten Move taub werden.
+        PreviewMouseMove += BoardViewport_PreviewMouseMove;
+        PreviewMouseUp += BoardViewport_PreviewMouseUp;
     }
 
     // ---------- Helpers ----------
@@ -109,10 +114,10 @@ public partial class MainWindow : Window
     private void BoardViewport_PreviewMouseMove(object sender, MouseEventArgs e)
     {
         if (!IsBoardActive()) return;
-        var bvm = BoardVmOf(sender as DependencyObject); if (bvm is null) return;
+        var bvm = (StoryboardViewModel)_vm.CurrentWorkspace!; // Fenster-Ebene: sender ist MainWindow
         if (_panning)
         {
-            var pos = e.GetPosition((Border)sender);
+            var pos = e.GetPosition((Border)FindViewport()!);
             bvm.PanX = _panX0 + (pos.X - _panStart.X); bvm.PanY = _panY0 + (pos.Y - _panStart.Y);
             return;
         }
@@ -122,10 +127,12 @@ public partial class MainWindow : Window
             if (Math.Abs(pos0.X - _pendingStart.X) + Math.Abs(pos0.Y - _pendingStart.Y) > 4)
             {
                 bvm.BeginChange();
-                // Echter Drag startet: erst JETZT Capture ergreifen (auf der Viewport).
+                // Echter Drag startet: erst JETZT Capture ergreifen - AUF DER KARTE (nicht Viewport).
                 _boardState = BoardState.MovingNode;
-                if (FindViewport() is FrameworkElement vp) vp.CaptureMouse();
                 _dragNode = _pendingNode; _dragSet = _pendingSet; _dragStart = _pendingStart; _pendingNode = null;
+                // Capture NACH der Zustands-Sicherung (verhindert Synth-Event-Doppelstart),
+                // Tunneling läuft weiterhin durch die Viewport zum Karten-Handler.
+                _dragCard?.CaptureMouse();
             }
             else return;
         }
@@ -154,7 +161,7 @@ public partial class MainWindow : Window
 
     private void BoardViewport_PreviewMouseUp(object sender, MouseButtonEventArgs e)
     {
-        var bvm = BoardVmOf(sender as DependencyObject);
+        var bvm = IsBoardActive() ? (StoryboardViewModel)_vm.CurrentWorkspace! : null;
         // Zentral: Capture IMMER freigeben, egal welches Element sie hat (Panel/Handle/Viewport).
         if (Mouse.Captured is FrameworkElement captured) captured.ReleaseMouseCapture();
         _boardState = BoardState.Idle;
@@ -183,7 +190,7 @@ public partial class MainWindow : Window
         if (_portSource is not null)
         {
             // Drop: Ziel-Node unter Cursor suchen
-            var target = NodeAt(e.GetPosition((Border)sender));
+            var target = NodeAt(e.GetPosition((Border)FindViewport()!));
             if (target is not null && target.Id != _portSource.Id) bvm?.CreateConnection(_portSource, target);
             CleanupTempLine();
             _portSource = null;
@@ -261,6 +268,7 @@ public partial class MainWindow : Window
         else bvm.SelectOnly(node); // normaler Klick = EINZEL-Auswahl (kein Block-Drag); Mehrfach nur mit Shift
         _boardState = BoardState.Selecting;
         // Nur bei gedruecktem Linksklick AUF dem Panel + Bewegung > 4px wird gezogen.
+        _dragCard = card;
         _pendingNode = node;
         _pendingSet = bvm.SelectedNodes.Select(n => (n, n.X, n.Y)).ToList();
         if (_pendingSet.Count == 0) _pendingSet = [(node, node.X, node.Y)];

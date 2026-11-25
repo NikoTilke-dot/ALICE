@@ -195,7 +195,7 @@
                         <Button Content="Verbindung löschen" Command="{Binding DeleteSelectedConnectionCommand}" Style="{StaticResource DangerButton}" Margin="0,6,0,0" HorizontalAlignment="Left"/>
                     </StackPanel></ScrollViewer>
                 </Border>
-                <Border x:Name="BoardViewport" Background="{StaticResource BoardBg}" ClipToBounds="True" PreviewMouseLeftButtonDown="BoardViewport_PreviewMouseDown" PreviewMouseMove="BoardViewport_PreviewMouseMove" PreviewMouseUp="BoardViewport_PreviewMouseUp" PreviewMouseWheel="BoardViewport_PreviewMouseWheel" PreviewMouseRightButtonDown="BoardViewport_PreviewRightDown" Focusable="True">
+                <Border x:Name="BoardViewport" Background="{StaticResource BoardBg}" ClipToBounds="True" PreviewMouseLeftButtonDown="BoardViewport_PreviewMouseDown" PreviewMouseWheel="BoardViewport_PreviewMouseWheel" PreviewMouseRightButtonDown="BoardViewport_PreviewRightDown" Focusable="True">
                     
                     <Grid x:Name="BoardWorld">
                         <Grid.RenderTransform><TransformGroup><ScaleTransform ScaleX="{Binding Zoom, Mode=OneWay}" ScaleY="{Binding Zoom, Mode=OneWay}"/><TranslateTransform X="{Binding PanX, Mode=OneWay}" Y="{Binding PanY, Mode=OneWay}"/></TransformGroup></Grid.RenderTransform>
