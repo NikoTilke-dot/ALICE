@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Shapes;
@@ -10,6 +11,7 @@ namespace Alice.App;
 
 public partial class MainWindow : Window
 {
+    private static Mutex? _singleInstance;
     private readonly MainViewModel _vm;
 
     // Storyboard-Interaktionszustände (nie überlappend; Capture nur während echter Aktivitaet)
@@ -30,8 +32,15 @@ public partial class MainWindow : Window
     public MainWindow(MainViewModel vm)
     {
         _vm = vm;
+        // Nur EINE ALICE-Instanz (zwei Fenster ueberlagern sich und blockieren Eingabe).
+        var m = new Mutex(initiallyOwned: true, "ALICE.SingleInstance", out bool created);
+        if (!created) { m.Dispose(); System.Windows.MessageBox.Show("ALICE laeuft bereits."); Application.Current.Shutdown(); return; }
+        _singleInstance = m;
         InitializeComponent();
         DataContext = vm;
+        // Eingabe-Sicherung: haengendes Capture loesen, wenn keine Board-Geste laeuft.
+        Activated += (_, _) => ReleaseStaleCapture();
+        PreviewMouseDown += (_, _) => ReleaseStaleCapture();
         NavigatorTree.SelectedItemChanged += (_, e) =>
         {
             if (e.NewValue is NavigatorNode n) _vm.SelectedNavigatorItem = n;
@@ -67,6 +76,13 @@ public partial class MainWindow : Window
         return null;
     }
     private bool IsBoardActive() => _vm.CurrentWorkspace is StoryboardViewModel;
+    // Laeuft kein eigenes Board-Geste (Drag/Pan/Resize/Port), darf keine Captures anhalten.
+    private void ReleaseStaleCapture()
+    {
+        if (_dragNode is null && !_panning && _resizeNode is null && _portSource is null
+            && Mouse.Captured is Border captured) // nur Board-Karten/Viewport (keine Popup/Menues)
+            captured.ReleaseMouseCapture();
+    }
     private (double x, double y) ToBoard(StoryboardViewModel bvm, Point viewportPos)
         => ((viewportPos.X - bvm.PanX) / bvm.Zoom, (viewportPos.Y - bvm.PanY) / bvm.Zoom);
 
