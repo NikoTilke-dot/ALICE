@@ -82,6 +82,23 @@ public sealed class ImportExportService : IImportExportService
         // lose Szenen ohne Kapitel
         foreach (var sc in p.Nodes.Where(n => (n.Kind == NodeKind.Scene || n.Kind == NodeKind.SubScene) && (n.ParentId == null || p.Find(n.ParentId.Value)?.Kind != NodeKind.Chapter)).OrderBy(n => n.SortOrder))
         { sb.AppendLine(); sb.AppendLine(sc.Content); }
+        // Storyboard-Boards (Panels + Verbindungen) als Anhang
+        foreach (var wb in p.Whiteboards)
+        {
+            sb.AppendLine(); sb.AppendLine(); sb.AppendLine($"Storyboard: {wb.Title}"); sb.AppendLine(new string('-', wb.Title.Length + 12));
+            foreach (var n in wb.Nodes.OrderBy(n => n.IsBookPanel ? 0 : 1))
+            {
+                sb.AppendLine($"[{BoardNodeTypes.LabelOf(n.NodeType)}] {n.Title}");
+                if (!string.IsNullOrWhiteSpace(n.Text)) sb.AppendLine(n.Text);
+                if (!string.IsNullOrWhiteSpace(n.Status) || !string.IsNullOrWhiteSpace(n.Tags)) sb.AppendLine($"  Status: {n.Status}  Tags: {n.Tags}".Trim());
+            }
+            foreach (var c in wb.Connections)
+            {
+                var a = wb.Nodes.FirstOrDefault(n => n.Id == c.FromNodeId); var b = wb.Nodes.FirstOrDefault(n => n.Id == c.ToNodeId);
+                if (a is not null && b is not null) sb.AppendLine($"  {a.Title} --[{BoardConnectionKinds.LabelOf(c.Kind)}{(string.IsNullOrWhiteSpace(c.Label) ? "" : ": " + c.Label)}]--> {b.Title}");
+            }
+            sb.AppendLine();
+        }
         return sb.ToString();
     }
 
@@ -185,8 +202,8 @@ public sealed class ImportExportService : IImportExportService
         foreach (var o in pageObjs) sb.Append(o + "\n");
         var fontId = objNum++;
         sb.Append($"{fontId} 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj\n");
-        // Pages kids nachtragen (einfach neu aufbauen)
-        var final = sb.ToString().Replace("/Kids []", $"/Kids [{string.Join(" ", pages.Select(x => $"{x} 0 R"))}] /Count {pages.Count}");
+        // Pages kids + echte Font-ID nachtragen
+        var final = sb.ToString().Replace("/Kids []", $"/Kids [{string.Join(" ", pages.Select(x => $"{x} 0 R"))}] /Count {pages.Count}").Replace("/F1 9 0 R", $"/F1 {fontId} 0 R");
         await File.WriteAllTextAsync(path, final, Encoding.ASCII, ct);
     }
 

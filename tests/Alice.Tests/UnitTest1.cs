@@ -259,7 +259,10 @@ public sealed class StoryboardTests
     [Fact]
     public void BoardNodeTypes_has14()
     {
-        Assert.Equal(14, BoardNodeTypes.All.Count);
+        Assert.Equal(17, BoardNodeTypes.All.Count);
+        Assert.Equal("Buch", BoardNodeTypes.LabelOf(BoardNodeType.Book));
+        Assert.Equal("Hauptfigur", BoardNodeTypes.LabelOf(BoardNodeType.MainCharacter));
+        Assert.Equal("Nebenfigur", BoardNodeTypes.LabelOf(BoardNodeType.SideCharacter));
         Assert.Equal("#E05C7A", BoardNodeTypes.ColorOf(BoardNodeType.Character));
         Assert.Equal("Charakter", BoardNodeTypes.LabelOf(BoardNodeType.Character));
         Assert.Equal(8, BoardConnectionKinds.All.Count);

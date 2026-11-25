@@ -1,7 +1,7 @@
 namespace Alice.Core.Models;
 
 /// <summary>Typ eines Storyboard-Nodes (Vorlage mit Farbe + Symbol).</summary>
-public enum BoardNodeType { Note, Character, Location, World, Faction, Event, Chapter, Scene, Object, Mystery, Conflict, Idea, Research, Custom }
+public enum BoardNodeType { Book, MainCharacter, SideCharacter, Note, Character, Location, World, Faction, Event, Chapter, Scene, Object, Mystery, Conflict, Idea, Research, Custom }
 
 /// <summary>Typ einer Verbindung zwischen Nodes.</summary>
 public enum BoardConnectionKind { Normal, ParentChild, Dependency, Relation, Temporal, Conflict, Reference, Custom }
@@ -16,6 +16,9 @@ public static class BoardNodeTypes
 
     public static IReadOnlyList<Info> All { get; } =
     [
+        new(BoardNodeType.Book, "Buch", "#8B7CF0", "\uE8F1"),
+        new(BoardNodeType.MainCharacter, "Hauptfigur", "#E05C7A", "\uE77B"),
+        new(BoardNodeType.SideCharacter, "Nebenfigur", "#F0A35E", "\uE77B"),
         new(BoardNodeType.Note, "Allgemeine Notiz", "#5B8DEF", "\uE70B"),
         new(BoardNodeType.Character, "Charakter", "#E05C7A", "\uE77B"),
         new(BoardNodeType.Location, "Ort", "#2EA8A0", "\uE707"),
@@ -74,6 +77,7 @@ public sealed class BoardNode
     public double Width { get; set; } = 220;
     public double Height { get; set; } = 120;
     public bool IsCollapsed { get; set; }
+    public bool IsBookPanel { get; set; } // großes Standard-Panel mit Buchtitel (Startpunkt, nicht löschbar)
     public string Tags { get; set; } = string.Empty;
     public Guid? GroupId { get; set; }
     public BoardLinkKind LinkKind { get; set; } = BoardLinkKind.None;

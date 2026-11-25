@@ -17,6 +17,7 @@ namespace Alice.App.ViewModels;
 public partial class MainViewModel : ObservableObject
 {
     private readonly IProjectRepository _repo;
+    private readonly IImportExportService? _importExport;
     private readonly ISettingsStore _settings;
     private readonly IBackupService _backup;
     private readonly IDeepAiCompanionService _deepAi;
@@ -72,9 +73,9 @@ public partial class MainViewModel : ObservableObject
         NavigatorViewModel nav, EditorViewModel editor, InspectorViewModel inspector,
         CorkboardViewModel cork, OutlinerViewModel outliner, CharactersViewModel chars, WorldViewModel world,
         TimelineViewModel timeline, ResearchViewModel research, AiPanelViewModel ai, DashboardViewModel dash,
-        StatsViewModel stats, SettingsViewModel settingsVm, SearchViewModel search, StoryboardViewModel board)
+        StatsViewModel stats, SettingsViewModel settingsVm, SearchViewModel search, StoryboardViewModel board, IImportExportService? importExport = null)
     {
-        _repo = repo; _settings = settings; _backup = backup; _deepAi = deepAi;
+        _repo = repo; _importExport = importExport; _settings = settings; _backup = backup; _deepAi = deepAi;
         _nav = nav; _editor = editor; _inspectorVm = inspector; _cork = cork; _outliner = outliner; _chars = chars; _world = world;
         _timeline = timeline; _research = research; _ai = ai; _dash = dash; _stats = stats; _settingsVm = settingsVm; _search = search; _board = board;
         Inspector = _inspectorVm;
@@ -216,6 +217,37 @@ public partial class MainViewModel : ObservableObject
         await _repo.SaveAsync(project, path);
         Project = project; ProjectPath = path; RegisterRecent(path, title); RefreshAll();
         StatusText = "Neues Projekt erstellt.";
+    }
+
+    [RelayCommand]
+    private async Task ExportProject(object? formatParam)
+    {
+        if (Project is null || _importExport is null) { StatusText = "Export nicht verfügbar."; return; }
+        var format = formatParam switch { string s when Enum.TryParse<ExportFormat>(s, out var f) => f, ExportFormat f2 => f2, _ => ExportFormat.Pdf };
+        var (filter, ext) = format switch { ExportFormat.Pdf => ("PDF (*.pdf)|*.pdf", ".pdf"), ExportFormat.Docx => ("Word (*.docx)|*.docx", ".docx"), ExportFormat.Epub => ("EPUB (*.epub)|*.epub", ".epub"), ExportFormat.Markdown => ("Markdown (*.md)|*.md", ".md"), _ => ("Text (*.txt)|*.txt", ".txt") };
+        var safe = string.Concat(Project.Title.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+        var dlg = new Microsoft.Win32.SaveFileDialog { Filter = filter, FileName = safe + ext, InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) };
+        if (dlg.ShowDialog() != true) return;
+        try { await _importExport.ExportAsync(Project, dlg.FileName, format); StatusText = "Exportiert: " + dlg.FileName; }
+        catch (Exception ex) { StatusText = "Export-Fehler: " + ex.Message; }
+    }
+
+    [RelayCommand]
+    private async Task ImportProject()
+    {
+        if (_importExport is null) { StatusText = "Import nicht verfügbar."; return; }
+        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "Text/Markdown (*.txt;*.md)|*.txt;*.md|Word (*.docx)|*.docx|RTF (*.rtf)|*.rtf|Alle Dateien|*.*" };
+        if (dlg.ShowDialog() != true) return;
+        var format = Path.GetExtension(dlg.FileName).ToLowerInvariant() switch { ".docx" => ImportFormat.Docx, ".rtf" => ImportFormat.Rtf, ".md" => ImportFormat.Markdown, _ => ImportFormat.Txt };
+        try
+        {
+            var imported = await _importExport.ImportAsync(dlg.FileName, format);
+            var path = Path.Combine(_settings.Current.ProjectsRootHint, imported.Title + ".alice.json");
+            await _repo.SaveAsync(imported, path);
+            Project = imported; ProjectPath = path; RegisterRecent(path, imported.Title); RefreshAll();
+            StatusText = "Importiert: " + dlg.FileName;
+        }
+        catch (Exception ex) { StatusText = "Import-Fehler: " + ex.Message; }
     }
 
     [RelayCommand]

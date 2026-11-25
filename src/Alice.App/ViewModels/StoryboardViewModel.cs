@@ -141,8 +141,8 @@ public partial class StoryboardViewModel : ObservableObject
         if (project.Whiteboards.Count == 0)
         {
             var wb = new Whiteboard { Title = "Gesamtplot" };
-            wb.Nodes.Add(new BoardNode { Title = "Hauptfigur", NodeType = BoardNodeType.Character, Text = "Ziel, Hintergrund, Geheimnis …", X = 80, Y = 80 });
-            wb.Nodes.Add(new BoardNode { Title = "Kapitel 1 – Anfang", NodeType = BoardNodeType.Chapter, Text = "Eröffnungsszene …", X = 420, Y = 80 });
+            wb.Nodes.Add(new BoardNode { Title = "Hauptfigur", NodeType = BoardNodeType.MainCharacter, Text = "Ziel, Hintergrund, Geheimnis …", X = 500, Y = 80 });
+            wb.Nodes.Add(new BoardNode { Title = "Kapitel 1 – Anfang", NodeType = BoardNodeType.Chapter, Text = "Eröffnungsszene …", X = 830, Y = 80 });
             wb.Connections.Add(new BoardConnection { FromNodeId = wb.Nodes[0].Id, ToNodeId = wb.Nodes[1].Id, Label = "erlebt" });
             project.Whiteboards.Add(wb); project.ActiveWhiteboardId = wb.Id;
         }
@@ -156,9 +156,34 @@ public partial class StoryboardViewModel : ObservableObject
         SetActiveBoard(active);
     }
 
+    /// <summary>Großes Buch-Panel mit aktuellem Buchtitel als Standard-Startpunkt (wird nie gelöscht).</summary>
+    public BoardNode EnsureBookPanel(Whiteboard board)
+    {
+        var existing = board.Nodes.FirstOrDefault(n => n.IsBookPanel || n.NodeType == BoardNodeType.Book);
+        var title = _project?.Title ?? board.Title;
+        if (existing is not null)
+        {
+            existing.IsBookPanel = true;
+            if (existing.Width < 300) { existing.Width = 360; existing.Height = 170; }
+            if (string.IsNullOrWhiteSpace(existing.Title) || existing.Title == "Buch") existing.Title = title;
+            return existing;
+        }
+        var book = new BoardNode
+        {
+            Title = title,
+            Text = "Rechtsklick auf dieses Panel: Hauptfigur, Nebenfigur, Ort, Kapitel … erstellen – alles wird per Linie hiermit verbunden.",
+            NodeType = BoardNodeType.Book, IsBookPanel = true,
+            X = 60, Y = 60, Width = 360, Height = 170, ZIndex = 1,
+            AccentColor = BoardNodeTypes.ColorOf(BoardNodeType.Book), Symbol = BoardNodeTypes.GlyphOf(BoardNodeType.Book),
+        };
+        board.Nodes.Insert(0, book);
+        return book;
+    }
+
     private void SetActiveBoard(Whiteboard board)
     {
         if (_project is not null) _project.ActiveWhiteboardId = board.Id;
+        EnsureBookPanel(board);
         _suspendHistory = true;
         ActiveBoard = board;
         Zoom = board.Zoom <= 0 ? 1.0 : board.Zoom; PanX = board.PanX; PanY = board.PanY; ShowGrid = board.ShowGrid;
@@ -239,11 +264,12 @@ public partial class StoryboardViewModel : ObservableObject
         if (ActiveBoard is null) return null!;
         BeginChange();
         var info = BoardNodeTypes.Of(type);
+        var isBook = type == BoardNodeType.Book;
         var node = new BoardNode
         {
-            Title = string.IsNullOrWhiteSpace(title) ? info.Label : title,
-            NodeType = type, X = x, Y = y, Width = 220, Height = 120,
-            AccentColor = info.Color, Symbol = info.Glyph,
+            Title = string.IsNullOrWhiteSpace(title) ? (isBook ? (_project?.Title ?? info.Label) : info.Label) : title,
+            NodeType = type, X = x, Y = y, Width = isBook ? 360 : 220, Height = isBook ? 170 : 120,
+            AccentColor = info.Color, Symbol = info.Glyph, IsBookPanel = isBook,
             ZIndex = Nodes.Count + 1,
         };
         ActiveBoard.Nodes.Add(node);
@@ -284,6 +310,7 @@ public partial class StoryboardViewModel : ObservableObject
     [RelayCommand] public void DeleteSelected()
     {
         if (SelectedNode is null || ActiveBoard is null) return;
+        if (SelectedNode.Model.IsBookPanel) { StatusText = "Das Buch-Panel (Buchtitel) kann nicht gelöscht werden."; return; }
         BeginChange();
         var id = SelectedNode.Id;
         ActiveBoard.Nodes.RemoveAll(n => n.Id == id);

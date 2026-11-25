@@ -14,6 +14,7 @@ public partial class MainWindow : Window
     // Storyboard-Drag-Zustand
     private bool _panning; private Point _panStart; private double _panX0, _panY0;
     private BoardNodeVm? _dragNode; private Point _dragStart; private List<(BoardNodeVm Node, double X, double Y)> _dragSet = [];
+    private BoardNodeVm? _pendingNode; private Point _pendingStart; private List<(BoardNodeVm Node, double X, double Y)> _pendingSet = []; // Drag erst nach 4px Bewegung (kein Versehen bei Klick)
     private BoardNodeVm? _resizeNode; private double _resizeW, _resizeH;
     private BoardNodeVm? _portSource; private Line? _tempLine;
     private readonly HashSet<BoardNodeVm> _highlighted = [];
@@ -105,6 +106,16 @@ public partial class MainWindow : Window
             bvm.PanX = _panX0 + (pos.X - _panStart.X); bvm.PanY = _panY0 + (pos.Y - _panStart.Y);
             return;
         }
+        if (_pendingNode is not null && _dragNode is null)
+        {
+            var pos0 = e.GetPosition((Border)FindViewport()!);
+            if (Math.Abs(pos0.X - _pendingStart.X) + Math.Abs(pos0.Y - _pendingStart.Y) > 4)
+            {
+                bvm.BeginChange();
+                _dragNode = _pendingNode; _dragSet = _pendingSet; _dragStart = _pendingStart; _pendingNode = null;
+            }
+            else return;
+        }
         if (_dragNode is not null && _dragSet.Count > 0)
         {
             var pos = e.GetPosition((Border)FindViewport()!);
@@ -132,6 +143,7 @@ public partial class MainWindow : Window
     {
         var bvm = BoardVmOf(sender as DependencyObject);
         if (_panning) { _panning = false; (sender as Border)?.ReleaseMouseCapture(); }
+        _pendingNode = null;
         if (_dragNode is not null) { _dragNode = null; _dragSet = []; bvm?.EndChange(); }
         if (_resizeNode is not null) { _resizeNode = null; bvm?.EndChange(); }
         if (_portSource is not null)
@@ -191,17 +203,19 @@ public partial class MainWindow : Window
     {
         if (sender is not Border card || !IsBoardActive()) return;
         if (e.OriginalSource is TextBox) return; // Textfeld bearbeiten, nicht ziehen
+        // Port/Resize-Griffe nicht als Drag behandeln (eigene Handler)
+        var src = e.OriginalSource as DependencyObject; var cur = src;
+        while (cur is not null) { if (cur is FrameworkElement fe && (fe.Name == "ConnectPort" || fe.Name == "ResizeHandle")) return; cur = VisualTreeHelper.GetParent(cur); }
         var bvm = BoardVmOf(card); if (bvm is null) return;
         if (card.DataContext is not BoardNodeVm node) return;
         if (bvm.HandleNodeClickForConnect(node)) { e.Handled = true; return; }
         if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift) bvm.ToggleSelect(node);
         else if (!node.IsSelected) bvm.SelectOnly(node);
-        // Drag vorbereiten
-        bvm.BeginChange();
-        _dragNode = node;
-        _dragSet = bvm.SelectedNodes.Select(n => (n, n.X, n.Y)).ToList();
-        if (_dragSet.Count == 0) _dragSet = [(node, node.X, node.Y)];
-        _dragStart = e.GetPosition((Border)FindViewport()!);
+        // Nur bei gedruecktem Linksklick AUF dem Panel + Bewegung > 4px wird gezogen.
+        _pendingNode = node;
+        _pendingSet = bvm.SelectedNodes.Select(n => (n, n.X, n.Y)).ToList();
+        if (_pendingSet.Count == 0) _pendingSet = [(node, node.X, node.Y)];
+        _pendingStart = e.GetPosition((Border)FindViewport()!);
         _highlighted.Add(node);
         card.CaptureMouse();
         e.Handled = true;

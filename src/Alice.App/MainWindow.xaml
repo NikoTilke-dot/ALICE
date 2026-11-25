@@ -180,11 +180,20 @@
                     <Border.ContextMenu>
                         <ContextMenu>
                             <MenuItem Header="Neues Schreibfeld" Click="BoardCanvasMenu_Click" Tag="Note"/>
+                            <MenuItem Header="Neue Hauptfigur" Click="BoardCanvasMenu_Click" Tag="MainCharacter"/>
+                            <MenuItem Header="Neue Nebenfigur" Click="BoardCanvasMenu_Click" Tag="SideCharacter"/>
                             <MenuItem Header="Neuer Charakter" Click="BoardCanvasMenu_Click" Tag="Character"/>
                             <MenuItem Header="Neuer Ort" Click="BoardCanvasMenu_Click" Tag="Location"/>
                             <MenuItem Header="Neue Welt" Click="BoardCanvasMenu_Click" Tag="World"/>
+                            <MenuItem Header="Neue Fraktion" Click="BoardCanvasMenu_Click" Tag="Faction"/>
                             <MenuItem Header="Neues Ereignis" Click="BoardCanvasMenu_Click" Tag="Event"/>
+                            <MenuItem Header="Neues Kapitel" Click="BoardCanvasMenu_Click" Tag="Chapter"/>
+                            <MenuItem Header="Neue Szene" Click="BoardCanvasMenu_Click" Tag="Scene"/>
+                            <MenuItem Header="Neuer Gegenstand" Click="BoardCanvasMenu_Click" Tag="Object"/>
+                            <MenuItem Header="Neues Geheimnis" Click="BoardCanvasMenu_Click" Tag="Mystery"/>
+                            <MenuItem Header="Neuer Konflikt" Click="BoardCanvasMenu_Click" Tag="Conflict"/>
                             <MenuItem Header="Neue Idee" Click="BoardCanvasMenu_Click" Tag="Idea"/>
+                            <MenuItem Header="Neue Recherche" Click="BoardCanvasMenu_Click" Tag="Research"/>
                             <MenuItem Header="Neue Verbindung" Click="BoardCanvasMenu_Click" Tag="Connect"/>
                             <MenuItem Header="Einfügen (Nodes aus Zwischenablage)" Click="BoardCanvasMenu_Click" Tag="Paste"/>
                         </ContextMenu>
@@ -198,9 +207,20 @@
                             <Border.Style><Style TargetType="Border"><Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/><Style.Triggers><DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter Property="BorderBrush" Value="{StaticResource Accent}"/><Setter Property="BorderThickness" Value="2.5"/></DataTrigger><DataTrigger Binding="{Binding IsHighlighted}" Value="True"><Setter Property="BorderBrush" Value="{StaticResource Warning}"/><Setter Property="BorderThickness" Value="3"/></DataTrigger></Style.Triggers></Style></Border.Style>
                             <Border.ContextMenu><ContextMenu>
                                 <MenuItem Header="Neues verbundenes Schreibfeld" Click="BoardNodeMenu_Click" Tag="Note"/>
+                                <MenuItem Header="Neue Hauptfigur erstellen" Click="BoardNodeMenu_Click" Tag="MainCharacter"/>
+                                <MenuItem Header="Neue Nebenfigur erstellen" Click="BoardNodeMenu_Click" Tag="SideCharacter"/>
                                 <MenuItem Header="Neuen Charakter erstellen" Click="BoardNodeMenu_Click" Tag="Character"/>
                                 <MenuItem Header="Neuen Ort erstellen" Click="BoardNodeMenu_Click" Tag="Location"/>
+                                <MenuItem Header="Neue Welt erstellen" Click="BoardNodeMenu_Click" Tag="World"/>
+                                <MenuItem Header="Neue Fraktion erstellen" Click="BoardNodeMenu_Click" Tag="Faction"/>
                                 <MenuItem Header="Neues Ereignis erstellen" Click="BoardNodeMenu_Click" Tag="Event"/>
+                                <MenuItem Header="Neues Kapitel erstellen" Click="BoardNodeMenu_Click" Tag="Chapter"/>
+                                <MenuItem Header="Neue Szene erstellen" Click="BoardNodeMenu_Click" Tag="Scene"/>
+                                <MenuItem Header="Neuen Gegenstand erstellen" Click="BoardNodeMenu_Click" Tag="Object"/>
+                                <MenuItem Header="Neues Geheimnis erstellen" Click="BoardNodeMenu_Click" Tag="Mystery"/>
+                                <MenuItem Header="Neuen Konflikt erstellen" Click="BoardNodeMenu_Click" Tag="Conflict"/>
+                                <MenuItem Header="Neue Idee erstellen" Click="BoardNodeMenu_Click" Tag="Idea"/>
+                                <MenuItem Header="Neue Recherche erstellen" Click="BoardNodeMenu_Click" Tag="Research"/>
                                 <MenuItem Header="Verbindung erstellen" Click="BoardNodeMenu_Click" Tag="Connect"/>
                                 <MenuItem Header="Duplizieren" Click="BoardNodeMenu_Click" Tag="Duplicate"/>
                                 <MenuItem Header="Einklappen / Ausklappen" Click="BoardNodeMenu_Click" Tag="Collapse"/>
@@ -241,7 +261,7 @@
         <StackPanel DockPanel.Dock="Top">
             <TextBlock Margin="10,8,0,0" FontSize="13" Foreground="{StaticResource FgMuted}"><Run Text="ALICE – Advanced Literary &amp; Creative Intelligence Studio" Foreground="{StaticResource FgMain}" FontWeight="SemiBold"/><Run Text="  •  "/><Run Text="{Binding ProjectTitle}"/></TextBlock>
             <Menu Margin="4,2,4,0" Background="Transparent">
-                <MenuItem Header="Projekt" Style="{StaticResource TopMenuItem}"><MenuItem Header="Neu…" Command="{Binding NewProjectCommand}"/><MenuItem Header="Öffnen…" Command="{Binding OpenProjectCommand}"/><MenuItem Header="Speichern" Command="{Binding SaveCommand}"/><Separator/><MenuItem Header="Backup jetzt erstellen" Command="{Binding BackupNowCommand}"/><MenuItem Header="Backup wiederherstellen…" Command="{Binding RestoreCommand}"/><Separator/><MenuItem Header="Beenden" Command="{Binding ExitCommand}"/></MenuItem>
+                <MenuItem Header="Projekt" Style="{StaticResource TopMenuItem}"><MenuItem Header="Neu…" Command="{Binding NewProjectCommand}"/><MenuItem Header="Öffnen…" Command="{Binding OpenProjectCommand}"/><MenuItem Header="Speichern" Command="{Binding SaveCommand}"/><Separator/><MenuItem Header="Als PDF exportieren…" Command="{Binding ExportProjectCommand}" CommandParameter="Pdf"/><MenuItem Header="Als DOCX exportieren…" Command="{Binding ExportProjectCommand}" CommandParameter="Docx"/><MenuItem Header="Als EPUB exportieren…" Command="{Binding ExportProjectCommand}" CommandParameter="Epub"/><MenuItem Header="Als TXT exportieren…" Command="{Binding ExportProjectCommand}" CommandParameter="Txt"/><MenuItem Header="Als Markdown exportieren…" Command="{Binding ExportProjectCommand}" CommandParameter="Markdown"/><Separator/><MenuItem Header="Importieren (TXT/MD/DOCX/RTF)…" Command="{Binding ImportProjectCommand}"/><Separator/><MenuItem Header="Backup jetzt erstellen" Command="{Binding BackupNowCommand}"/><MenuItem Header="Backup wiederherstellen…" Command="{Binding RestoreCommand}"/><Separator/><MenuItem Header="Beenden" Command="{Binding ExitCommand}"/></MenuItem>
                 <MenuItem Header="Bearbeiten" Style="{StaticResource TopMenuItem}"><MenuItem Header="Rückgängig" Command="{Binding UndoCommand}"/><MenuItem Header="Wiederholen" Command="{Binding RedoCommand}"/><Separator/><MenuItem Header="Snapshot erstellen" Command="{Binding NewSnapshotCommand}"/></MenuItem>
                 <MenuItem Header="Ansicht" Style="{StaticResource TopMenuItem}"><MenuItem Header="Navigator" Command="{Binding ToggleNavigatorCommand}"/><MenuItem Header="Inspektor" Command="{Binding ToggleInspectorCommand}"/><MenuItem Header="KI-Panel" Command="{Binding ToggleAiCommand}"/><MenuItem Header="Fokusmodus" Command="{Binding ToggleFocusCommand}"/></MenuItem>
                 <MenuItem Header="Schreiben" Style="{StaticResource TopMenuItem}"><MenuItem Header="Editor" Command="{Binding ShowEditorCommand}"/><MenuItem Header="Corkboard" Command="{Binding ShowCorkboardCommand}"/><MenuItem Header="Outliner" Command="{Binding ShowOutlinerCommand}"/></MenuItem>
