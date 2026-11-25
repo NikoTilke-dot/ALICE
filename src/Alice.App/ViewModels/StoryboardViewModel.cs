@@ -140,11 +140,21 @@ public partial class StoryboardViewModel : ObservableObject
         if (project is null) { ActiveBoard = null; return; }
         if (project.Whiteboards.Count == 0)
         {
+            // Neue Boards enthalten NUR das Root-Buchpanel (wird in SetActiveBoard angelegt).
             var wb = new Whiteboard { Title = "Gesamtplot" };
-            wb.Nodes.Add(new BoardNode { Title = "Hauptfigur", NodeType = BoardNodeType.MainCharacter, Text = "Ziel, Hintergrund, Geheimnis …", X = 500, Y = 80 });
-            wb.Nodes.Add(new BoardNode { Title = "Kapitel 1 – Anfang", NodeType = BoardNodeType.Chapter, Text = "Eröffnungsszene …", X = 830, Y = 80 });
-            wb.Connections.Add(new BoardConnection { FromNodeId = wb.Nodes[0].Id, ToNodeId = wb.Nodes[1].Id, Label = "erlebt" });
             project.Whiteboards.Add(wb); project.ActiveWhiteboardId = wb.Id;
+        }
+        // Migration: alte Demo-Startpanels entfernen (exakte Seed-Inhalte, keine Nutzerdaten).
+        foreach (var b in project.Whiteboards)
+        {
+            var demo = b.Nodes.Where(n =>
+                (n.Title == "Hauptfigur" && n.Text == "Ziel, Hintergrund, Geheimnis …") ||
+                (n.Title == "Kapitel 1 – Anfang" && n.Text == "Eröffnungsszene …")).ToList();
+            foreach (var d in demo)
+            {
+                b.Connections.RemoveAll(c => c.FromNodeId == d.Id || c.ToNodeId == d.Id);
+                b.Nodes.Remove(d);
+            }
         }
         LinkOptions.Clear();
         foreach (var c in project.Characters) LinkOptions.Add(new LinkedOption { Id = c.Id.ToString(), Display = "Figur: " + c.Name });
@@ -333,7 +343,14 @@ public partial class StoryboardViewModel : ObservableObject
         var src = s.Model;
         var copy = JsonSerializer.Deserialize<BoardNode>(JsonSerializer.Serialize(src))!;
         copy.Id = Guid.NewGuid(); copy.Title = src.Title + " (Kopie)"; copy.X += 30; copy.Y += 30;
-        ActiveBoard.Nodes.Add(copy); var vm = new BoardNodeVm(copy); Nodes.Add(vm); SelectOnly(vm); EndChange();
+        ActiveBoard.Nodes.Add(copy); var vm = new BoardNodeVm(copy); Nodes.Add(vm);
+        // Mutter-Kind: Duplikat wird Kind der selben Mutter - Linie sofort erzeugen.
+        if (copy.ParentId is { } pid && !ActiveBoard.Connections.Any(c => c.FromNodeId == pid && c.ToNodeId == copy.Id))
+        {
+            var conn = new BoardConnection { FromNodeId = pid, ToNodeId = copy.Id };
+            ActiveBoard.Connections.Add(conn); Connections.Add(new BoardConnectionVm(conn, FindNode));
+        }
+        SelectOnly(vm); EndChange();
     }
     [RelayCommand] public void DeleteSelected()
     {

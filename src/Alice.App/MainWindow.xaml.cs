@@ -86,15 +86,12 @@ public partial class MainWindow : Window
         // Klick auf freie Fläche (nicht auf Node/Verbindung): Pan mit Linksklick, wenn Hand-Werkzeug; sonst Auswahl aufheben
         if (e.OriginalSource is Border || e.OriginalSource is Grid || e.OriginalSource == viewport)
         {
-            if (bvm.IsHandTool || e.MiddleButton == MouseButtonState.Pressed || _spaceDown)
+            // Canvas bewegen NUR mit Linksklick-Halten auf freier Fläche (getrennt von Panel-Drag).
+            // Rechtsklick = kein Drag (Kontextmenü gehört zum Panel). Mittel/Space/Hand bleiben zusaetzlich.
+            if (e.LeftButton == MouseButtonState.Pressed || e.MiddleButton == MouseButtonState.Pressed || _spaceDown || bvm.IsHandTool)
             {
                 _boardState = BoardState.MovingCanvas; _panning = true; _panStart = e.GetPosition(viewport); _panX0 = bvm.PanX; _panY0 = bvm.PanY;
                 viewport.CaptureMouse(); e.Handled = true;
-            }
-            else if (e.LeftButton == MouseButtonState.Pressed)
-            {
-                // Marquee: erst ab >4px Bewegung (einfacher Klick hebt Auswahl auf)
-                _boardState = BoardState.Marquee; _marquee = false; _marqueeStart = e.GetPosition(viewport); e.Handled = true;
             }
         }
     }
@@ -111,22 +108,6 @@ public partial class MainWindow : Window
     {
         if (!IsBoardActive()) return;
         var bvm = BoardVmOf(sender as DependencyObject); if (bvm is null) return;
-        if (_boardState == BoardState.Marquee && e.LeftButton == MouseButtonState.Pressed)
-        {
-            var pos = e.GetPosition((Border)FindViewport()!);
-            if (!_marquee && Math.Abs(pos.X - _marqueeStart.X) + Math.Abs(pos.Y - _marqueeStart.Y) > 4)
-            {
-                _marquee = true;
-                _marqueeRect = new System.Windows.Shapes.Rectangle { Fill = new SolidColorBrush(Color.FromArgb(60, 124, 124, 244)), Stroke = new SolidColorBrush(Color.FromRgb(124, 124, 244)), StrokeThickness = 1 };
-                (FindOverlay() as Canvas)?.Children.Add(_marqueeRect);
-            }
-            if (_marquee && _marqueeRect is not null)
-            {
-                Canvas.SetLeft(_marqueeRect, Math.Min(_marqueeStart.X, pos.X)); Canvas.SetTop(_marqueeRect, Math.Min(_marqueeStart.Y, pos.Y));
-                _marqueeRect.Width = Math.Abs(pos.X - _marqueeStart.X); _marqueeRect.Height = Math.Abs(pos.Y - _marqueeStart.Y);
-            }
-            return;
-        }
         if (_panning)
         {
             var pos = e.GetPosition((Border)sender);
@@ -174,20 +155,9 @@ public partial class MainWindow : Window
         var bvm = BoardVmOf(sender as DependencyObject);
         // Zentral: Capture IMMER freigeben, egal welches Element sie hat (Panel/Handle/Viewport).
         if (Mouse.Captured is FrameworkElement captured) captured.ReleaseMouseCapture();
-        if (_boardState == BoardState.Marquee)
-        {
-            var up = e.GetPosition((Border)FindViewport()!);
-            if (_marquee && bvm is not null)
-            {
-                var a = ToBoard(bvm, _marqueeStart); var bb = ToBoard(bvm, up);
-                bvm.SelectRect(Math.Min(a.x, bb.x), Math.Min(a.y, bb.y), Math.Max(a.x, bb.x), Math.Max(a.y, bb.y));
-            }
-            else bvm?.SelectOnly(null);
-            if (_marqueeRect is not null) { (FindOverlay() as Canvas)?.Children.Remove(_marqueeRect); _marqueeRect = null; }
-        }
         _boardState = BoardState.Idle;
         if (_panning) _panning = false;
-        _pendingNode = null; _pendingSet = []; _marquee = false;
+        _pendingNode = null; _pendingSet = [];
         if (_dragNode is not null) { _dragNode = null; _dragSet = []; bvm?.EndChange(); }
         if (_resizeNode is not null) { _resizeNode = null; bvm?.EndChange(); }
         if (_portSource is not null)
@@ -246,13 +216,15 @@ public partial class MainWindow : Window
     private void BoardNode_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not Border card || !IsBoardActive()) return;
-        if (e.OriginalSource is TextBox) return; // Textfeld bearbeiten, nicht ziehen
+        // Editierbares Textfeld (nach Doppelklick) bearbeiten, nicht ziehen. ReadOnly (Standard) = Panel-Koerper, Drag erlaubt.
+        if (e.OriginalSource is TextBox editable && !editable.IsReadOnly) return;
         // Port/Resize-Griffe nicht als Drag behandeln (eigene Handler)
         var src = e.OriginalSource as DependencyObject; var cur = src;
         while (cur is not null) { if (cur is FrameworkElement fe && (fe.Name == "ConnectPort" || fe.Name == "ResizeHandle")) return; cur = VisualTreeHelper.GetParent(cur); }
         var bvm = BoardVmOf(card); if (bvm is null) return;
         if (card.DataContext is not BoardNodeVm node) return;
-        if (bvm.HandleNodeClickForConnect(node)) { e.Handled = true; return; }
+        _boardState = BoardState.Selecting;
+        if (bvm.HandleNodeClickForConnect(node)) { _boardState = BoardState.CreatingConnection; e.Handled = true; return; }
         if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift) bvm.ToggleSelect(node);
         else if (!node.IsSelected) bvm.SelectOnly(node);
         // Nur bei gedruecktem Linksklick AUF dem Panel + Bewegung > 4px wird gezogen.
@@ -375,6 +347,17 @@ public partial class MainWindow : Window
         tb.Text = tb.Text.Remove(m.Index, m.Length).Insert(m.Index, dlg.GeneratedText);
         tb.SelectionStart = m.Index + dlg.GeneratedText.Length; tb.Focus();
         _vm.StatusText = "KI-Marker ausgeführt und durch Text ersetzt.";
+    }
+
+    // ---------- Panel-Text: Doppelklick = bearbeiten, sonst Panel-Koerper (Drag) ----------
+    private void NodeText_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not TextBox tb) return;
+        tb.IsReadOnly = false; tb.Focus(); tb.SelectAll(); e.Handled = true;
+    }
+    private void NodeText_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox tb) tb.IsReadOnly = true;
     }
 
     // ---------- KI im Storyboard (Vorschlaege / Prompt senden) ----------
