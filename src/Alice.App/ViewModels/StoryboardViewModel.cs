@@ -228,6 +228,11 @@ public partial class StoryboardViewModel : ObservableObject
     [RelayCommand] public void ToggleHand() { IsHandTool = !IsHandTool; StatusText = IsHandTool ? "Hand-Werkzeug: Ziehen zum Verschieben der Fläche." : "Auswahl-Werkzeug."; }
     [RelayCommand] public void ToggleConnect() { IsConnectMode = !IsConnectMode; _connectSource = null; StatusText = IsConnectMode ? "Verbinding erstellen: Quell-Node anklicken, dann Ziel-Node." : "Auswahl-Werkzeug."; }
 
+    /// <summary>Verbindungsmodus direkt mit diesem Node als Quelle starten (Kontextmenu).</summary>
+    public void StartConnectFrom(BoardNodeVm node) { IsConnectMode = true; _connectSource = node; SelectOnly(node); StatusText = "Quelle gesetzt. Jetzt Ziel-Node anklicken."; }
+    /// <summary>Kontextmenu-Einstieg: verbundener Node per Typname erstellen.</summary>
+    public void AddConnectedFromMenu(BoardNodeVm source, string typeName) => AddConnectedNode(source, ParseType(typeName));
+
     // ---------- Nodes erstellen ----------
     public BoardNodeVm AddNodeAt(BoardNodeType type, double x, double y, string title = "")
     {

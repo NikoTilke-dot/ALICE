@@ -249,6 +249,41 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    // ---------- Kontextmenüs (Click-Handler: Command-Bindungen lösen im Popup nicht auf) ----------
+    private void BoardCanvasMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem mi || !IsBoardActive()) return;
+        var ctx = mi.Parent as ContextMenu; var target = ctx?.PlacementTarget as Border; if (target is null) return;
+        var bvm = BoardVmOf(target); if (bvm is null) return;
+        var tag = mi.Tag as string ?? "Note";
+        switch (tag)
+        {
+            case "Connect": bvm.ToggleConnectCommand.Execute(null); break;
+            case "Paste": bvm.NodesFromClipboardCommand.Execute(null); break;
+            default: bvm.AddAtPending(tag); break;
+        }
+        e.Handled = true;
+    }
+
+    private void BoardNodeMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem mi || !IsBoardActive()) return;
+        var ctx = mi.Parent as ContextMenu; var target = ctx?.PlacementTarget as Border; if (target is null) return;
+        var bvm = BoardVmOf(target); if (bvm is null) return;
+        if (target.DataContext is not BoardNodeVm node) return;
+        var tag = mi.Tag as string ?? "Note";
+        bvm.SelectOnly(node);
+        switch (tag)
+        {
+            case "Connect": bvm.StartConnectFrom(node); break;
+            case "Duplicate": bvm.DuplicateSelectedCommand.Execute(null); break;
+            case "Collapse": bvm.ToggleCollapseSelectedCommand.Execute(null); break;
+            case "Delete": bvm.DeleteSelectedCommand.Execute(null); break;
+            default: bvm.AddConnectedFromMenu(node, tag); break;
+        }
+        e.Handled = true;
+    }
+
     private void BoardConnection_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (!IsBoardActive()) return;

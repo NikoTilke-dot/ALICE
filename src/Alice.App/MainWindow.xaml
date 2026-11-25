@@ -179,14 +179,14 @@
                 <Border x:Name="BoardViewport" Background="{StaticResource BoardBg}" ClipToBounds="True" PreviewMouseLeftButtonDown="BoardViewport_PreviewMouseDown" PreviewMouseMove="BoardViewport_PreviewMouseMove" PreviewMouseUp="BoardViewport_PreviewMouseUp" PreviewMouseWheel="BoardViewport_PreviewMouseWheel" PreviewMouseRightButtonDown="BoardViewport_PreviewRightDown" Focusable="True">
                     <Border.ContextMenu>
                         <ContextMenu>
-                            <MenuItem Header="Neues Schreibfeld" Command="{Binding AddAtPendingCommand}" CommandParameter="Note"/>
-                            <MenuItem Header="Neuer Charakter" Command="{Binding AddAtPendingCommand}" CommandParameter="Character"/>
-                            <MenuItem Header="Neuer Ort" Command="{Binding AddAtPendingCommand}" CommandParameter="Location"/>
-                            <MenuItem Header="Neue Welt" Command="{Binding AddAtPendingCommand}" CommandParameter="World"/>
-                            <MenuItem Header="Neues Ereignis" Command="{Binding AddAtPendingCommand}" CommandParameter="Event"/>
-                            <MenuItem Header="Neue Idee" Command="{Binding AddAtPendingCommand}" CommandParameter="Idea"/>
-                            <MenuItem Header="Neue Verbindung" Command="{Binding ToggleConnectCommand}"/>
-                            <MenuItem Header="Einfügen (Nodes aus Zwischenablage)" Command="{Binding NodesFromClipboardCommand}"/>
+                            <MenuItem Header="Neues Schreibfeld" Click="BoardCanvasMenu_Click" Tag="Note"/>
+                            <MenuItem Header="Neuer Charakter" Click="BoardCanvasMenu_Click" Tag="Character"/>
+                            <MenuItem Header="Neuer Ort" Click="BoardCanvasMenu_Click" Tag="Location"/>
+                            <MenuItem Header="Neue Welt" Click="BoardCanvasMenu_Click" Tag="World"/>
+                            <MenuItem Header="Neues Ereignis" Click="BoardCanvasMenu_Click" Tag="Event"/>
+                            <MenuItem Header="Neue Idee" Click="BoardCanvasMenu_Click" Tag="Idea"/>
+                            <MenuItem Header="Neue Verbindung" Click="BoardCanvasMenu_Click" Tag="Connect"/>
+                            <MenuItem Header="Einfügen (Nodes aus Zwischenablage)" Click="BoardCanvasMenu_Click" Tag="Paste"/>
                         </ContextMenu>
                     </Border.ContextMenu>
                     <Grid x:Name="BoardWorld">
@@ -197,14 +197,14 @@
                         <ItemsControl ItemsSource="{Binding Nodes}" Panel.ZIndex="2"><ItemsControl.ItemsPanel><ItemsPanelTemplate><Canvas/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemContainerStyle><Style TargetType="ContentPresenter"><Setter Property="Canvas.Left" Value="{Binding X}"/><Setter Property="Canvas.Top" Value="{Binding Y}"/><Setter Property="Panel.ZIndex" Value="{Binding ZIndex}"/></Style></ItemsControl.ItemContainerStyle><ItemsControl.ItemTemplate><DataTemplate><Border x:Name="NodeCard" Width="{Binding Width}" Height="{Binding Height}" Background="{Binding Color, Converter={StaticResource ColorToBrushConverter}}" CornerRadius="12" BorderThickness="1.5" BorderBrush="{StaticResource BorderBrush}" Visibility="{Binding IsVisible, Converter={StaticResource BoolToVisibilityConverter}}" PreviewMouseLeftButtonDown="BoardNode_PreviewMouseDown" PreviewMouseRightButtonDown="BoardNode_PreviewRightDown">
                             <Border.Style><Style TargetType="Border"><Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/><Style.Triggers><DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter Property="BorderBrush" Value="{StaticResource Accent}"/><Setter Property="BorderThickness" Value="2.5"/></DataTrigger><DataTrigger Binding="{Binding IsHighlighted}" Value="True"><Setter Property="BorderBrush" Value="{StaticResource Warning}"/><Setter Property="BorderThickness" Value="3"/></DataTrigger></Style.Triggers></Style></Border.Style>
                             <Border.ContextMenu><ContextMenu>
-                                <MenuItem Header="Neues verbundenes Schreibfeld" Command="{Binding DataContext.AddConnectedCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="Note"/>
-                                <MenuItem Header="Neuen Charakter erstellen" Command="{Binding DataContext.AddConnectedCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="Character"/>
-                                <MenuItem Header="Neuen Ort erstellen" Command="{Binding DataContext.AddConnectedCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="Location"/>
-                                <MenuItem Header="Neues Ereignis erstellen" Command="{Binding DataContext.AddConnectedCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="Event"/>
-                                <MenuItem Header="Verbindung erstellen" Command="{Binding DataContext.ToggleConnectCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
-                                <MenuItem Header="Duplizieren" Command="{Binding DataContext.DuplicateSelectedCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
-                                <MenuItem Header="Einklappen / Ausklappen" Command="{Binding DataContext.ToggleCollapseSelectedCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
-                                <MenuItem Header="Löschen" Command="{Binding DataContext.DeleteSelectedCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
+                                <MenuItem Header="Neues verbundenes Schreibfeld" Click="BoardNodeMenu_Click" Tag="Note"/>
+                                <MenuItem Header="Neuen Charakter erstellen" Click="BoardNodeMenu_Click" Tag="Character"/>
+                                <MenuItem Header="Neuen Ort erstellen" Click="BoardNodeMenu_Click" Tag="Location"/>
+                                <MenuItem Header="Neues Ereignis erstellen" Click="BoardNodeMenu_Click" Tag="Event"/>
+                                <MenuItem Header="Verbindung erstellen" Click="BoardNodeMenu_Click" Tag="Connect"/>
+                                <MenuItem Header="Duplizieren" Click="BoardNodeMenu_Click" Tag="Duplicate"/>
+                                <MenuItem Header="Einklappen / Ausklappen" Click="BoardNodeMenu_Click" Tag="Collapse"/>
+                                <MenuItem Header="Löschen" Click="BoardNodeMenu_Click" Tag="Delete"/>
                             </ContextMenu></Border.ContextMenu>
                             <DockPanel Margin="0">
                                 <Border DockPanel.Dock="Top" Height="5" CornerRadius="12,12,0,0" Background="{Binding Accent, Converter={StaticResource ColorToBrushConverter}}"/>
