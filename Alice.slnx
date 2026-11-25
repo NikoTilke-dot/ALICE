@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Alice.App/Alice.App.csproj" />
+    <Project Path="src/Alice.Core/Alice.Core.csproj" />
+    <Project Path="src/Alice.Data/Alice.Data.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Alice.Tests/Alice.Tests.csproj" />
+  </Folder>
+</Solution>

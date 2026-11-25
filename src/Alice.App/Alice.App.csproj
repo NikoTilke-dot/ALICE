@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Alice.Core\Alice.Core.csproj" />
+    <ProjectReference Include="..\Alice.Data\Alice.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>..\..\assets\alice.ico</ApplicationIcon>
+    <AssemblyTitle>ALICE — Advanced Literary &amp; Creative Intelligence Studio</AssemblyTitle>
+    <Product>ALICE</Product>
+    <Description>Local-First Schreibstudio für Romane, Weltbau und KI-Begleitung.</Description>
+    <Company>ALICE Studio</Company>
+    <Copyright>Copyright © ALICE 2026</Copyright>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Authors>ALICE Studio</Authors>
+  </PropertyGroup>
+
+</Project>

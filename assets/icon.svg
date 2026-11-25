@@ -1,4 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#0d9488"/>
-  <text x="32" y="32" dy="0.35em" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, sans-serif" font-size="32" font-weight="600" fill="#ffffff">A</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#171822"/>
+      <stop offset="1" stop-color="#2A2B3D"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9B9BF8"/>
+      <stop offset="1" stop-color="#7C7CF4"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#bg)" stroke="#7C7CF4" stroke-width="3"/>
+  <!-- crescent moon -->
+  <path d="M 168 62 A 62 62 0 1 0 194 194 A 78 78 0 0 1 168 62 Z" fill="url(#accent)" opacity="0.95"/>
+  <!-- stars -->
+  <path d="M 142 72 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 Z" fill="#EDEEF5"/>
+  <circle cx="118" cy="128" r="5" fill="#9A9DB5"/>
+  <circle cx="152" cy="150" r="4" fill="#9A9DB5"/>
+  <!-- pen nib line -->
+  <path d="M 84 182 L 112 154 L 120 162 L 92 190 Z" fill="#EDEEF5" opacity="0.9"/>
 </svg>

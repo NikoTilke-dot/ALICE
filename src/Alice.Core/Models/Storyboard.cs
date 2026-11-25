@@ -1,0 +1,134 @@
+namespace Alice.Core.Models;
+
+/// <summary>Typ eines Storyboard-Nodes (Vorlage mit Farbe + Symbol).</summary>
+public enum BoardNodeType { Note, Character, Location, World, Faction, Event, Chapter, Scene, Object, Mystery, Conflict, Idea, Research, Custom }
+
+/// <summary>Typ einer Verbindung zwischen Nodes.</summary>
+public enum BoardConnectionKind { Normal, ParentChild, Dependency, Relation, Temporal, Conflict, Reference, Custom }
+
+/// <summary>Verknüpfungsart eines Nodes zu einem ALICE-Projektobjekt.</summary>
+public enum BoardLinkKind { None, Character, World, Manuscript, Timeline }
+
+/// <summary>Katalog der Node-Vorlagen: Farbe + Glyph (Segoe MDL2) + deutsches Label.</summary>
+public static class BoardNodeTypes
+{
+    public sealed record Info(BoardNodeType Type, string Label, string Color, string Glyph);
+
+    public static IReadOnlyList<Info> All { get; } =
+    [
+        new(BoardNodeType.Note, "Allgemeine Notiz", "#5B8DEF", "\uE70B"),
+        new(BoardNodeType.Character, "Charakter", "#E05C7A", "\uE77B"),
+        new(BoardNodeType.Location, "Ort", "#2EA8A0", "\uE707"),
+        new(BoardNodeType.World, "Welt / Worldbuilding", "#8B7CF0", "\uE91B"),
+        new(BoardNodeType.Faction, "Fraktion", "#F0A35E", "\uE716"),
+        new(BoardNodeType.Event, "Ereignis", "#E0C45C", "\uE853"),
+        new(BoardNodeType.Chapter, "Kapitel", "#7C7CF4", "\uE8F1"),
+        new(BoardNodeType.Scene, "Szene", "#4ADE80", "\uE8F1"),
+        new(BoardNodeType.Object, "Gegenstand", "#9FA2BC", "\uE8F1"),
+        new(BoardNodeType.Mystery, "Geheimnis", "#C084FC", "\uE72E"),
+        new(BoardNodeType.Conflict, "Konflikt", "#F87171", "\uE711"),
+        new(BoardNodeType.Idea, "Idee", "#FBBF24", "\uE854"),
+        new(BoardNodeType.Research, "Recherche", "#38BDF8", "\uE721"),
+        new(BoardNodeType.Custom, "Eigene Kategorie", "#9FA2BC", "\uE70B"),
+    ];
+
+    public static Info Of(BoardNodeType t) => All.FirstOrDefault(x => x.Type == t) ?? All[0];
+    public static string LabelOf(BoardNodeType t) => Of(t).Label;
+    public static string ColorOf(BoardNodeType t) => Of(t).Color;
+    public static string GlyphOf(BoardNodeType t) => Of(t).Glyph;
+}
+
+/// <summary>Label-Katalog für Verbindungstypen.</summary>
+public static class BoardConnectionKinds
+{
+    public static string LabelOf(BoardConnectionKind k) => k switch
+    {
+        BoardConnectionKind.Normal => "Normale Verbindung",
+        BoardConnectionKind.ParentChild => "Eltern-Kind",
+        BoardConnectionKind.Dependency => "Abhängigkeit",
+        BoardConnectionKind.Relation => "Beziehung",
+        BoardConnectionKind.Temporal => "Zeitliche Verbindung",
+        BoardConnectionKind.Conflict => "Konflikt",
+        BoardConnectionKind.Reference => "Verweis",
+        _ => "Eigener Verbindungstyp",
+    };
+
+    public static IReadOnlyList<(BoardConnectionKind Kind, string Label)> All { get; } =
+        Enum.GetValues<BoardConnectionKind>().Select(k => (k, LabelOf(k))).ToList();
+}
+
+/// <summary>Ein frei platzierbarer Node auf dem Storyboard.</summary>
+public sealed class BoardNode
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Title { get; set; } = "Neue Notiz";
+    public string Text { get; set; } = string.Empty;
+    public BoardNodeType NodeType { get; set; } = BoardNodeType.Note;
+    public string Category { get; set; } = string.Empty; // freie Kategorie (überschreibt ggf. Typ-Label)
+    public string Status { get; set; } = string.Empty;
+    public string Symbol { get; set; } = string.Empty; // Glyph; leer = Typ-Glyph
+    public string Color { get; set; } = "#1A1B2A"; // Kartenhintergrund; leer = Standard
+    public string AccentColor { get; set; } = string.Empty; // Kategorie-Farbe; leer = Typ-Farbe
+    public double X { get; set; }
+    public double Y { get; set; }
+    public double Width { get; set; } = 220;
+    public double Height { get; set; } = 120;
+    public bool IsCollapsed { get; set; }
+    public string Tags { get; set; } = string.Empty;
+    public Guid? GroupId { get; set; }
+    public BoardLinkKind LinkKind { get; set; } = BoardLinkKind.None;
+    public string LinkId { get; set; } = string.Empty; // Id des verknüpften Projektobjekts
+    public int ZIndex { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    public string EffectiveGlyph => string.IsNullOrWhiteSpace(Symbol) ? BoardNodeTypes.GlyphOf(NodeType) : Symbol;
+    public string EffectiveAccent => string.IsNullOrWhiteSpace(AccentColor) ? BoardNodeTypes.ColorOf(NodeType) : AccentColor;
+    public double CenterX => X + Width / 2;
+    public double CenterY => Y + Height / 2;
+    public double RightX => X + Width;
+    public double MidY => Y + Height / 2;
+}
+
+/// <summary>Verbindungslinie zwischen zwei Nodes.</summary>
+public sealed class BoardConnection
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid FromNodeId { get; set; }
+    public Guid ToNodeId { get; set; }
+    public string Label { get; set; } = string.Empty;
+    public BoardConnectionKind Kind { get; set; } = BoardConnectionKind.Normal;
+    public string Color { get; set; } = "#4A4D6B"; // dunkle Standardlinie
+    public bool HasArrow { get; set; } = true;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>Optionale Gruppe / Frame, die Nodes zusammenfasst.</summary>
+public sealed class BoardGroup
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Title { get; set; } = "Neue Gruppe";
+    public double X { get; set; }
+    public double Y { get; set; }
+    public double Width { get; set; } = 400;
+    public double Height { get; set; } = 280;
+    public string Color { get; set; } = "#2A2452";
+    public bool IsCollapsed { get; set; }
+}
+
+/// <summary>Ein Whiteboard (Canvas) mit eigenem Pan-/Zoom-Zustand.</summary>
+public sealed class Whiteboard
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Title { get; set; } = "Neues Storyboard";
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public List<BoardNode> Nodes { get; set; } = [];
+    public List<BoardConnection> Connections { get; set; } = [];
+    public List<BoardGroup> Groups { get; set; } = [];
+    // Canvas-Zustand (wird gespeichert, damit das Board exakt wiederhergestellt wird)
+    public double PanX { get; set; }
+    public double PanY { get; set; }
+    public double Zoom { get; set; } = 1.0;
+    public bool ShowGrid { get; set; } = true;
+}

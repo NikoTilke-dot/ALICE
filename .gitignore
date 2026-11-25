@@ -1,0 +1,11 @@
+# Build-Artefakte
+[Bb]in/
+[Oo]bj/
+*.user
+.vs/
+# Portable-Builds (437 DLLs) nicht komplett einchecken, nur EXE/ZIP/Setup
+publish/portable/*
+!publish/portable/ALICE.App.exe
+!publish/portable/Alice.App.dll
+!publish/portable/Alice.Core.dll
+!publish/portable/Alice.Data.dll
