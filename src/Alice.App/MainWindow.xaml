@@ -27,7 +27,14 @@
                 </StackPanel>
                 <StackPanel Grid.Row="1" MaxWidth="760" Margin="40,6,40,0" HorizontalAlignment="Center">
                     <Border Style="{StaticResource EditorCard}" Padding="0" Background="Transparent" BorderThickness="0">
-                        <TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MinHeight="320" BorderThickness="0" Background="Transparent" FontFamily="{Binding EditorFont, Mode=OneWay}" FontSize="{Binding EditorFontSize, Mode=OneWay}" Padding="18,8"/>
+                        <TextBox x:Name="EditorTextBox" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MinHeight="320" BorderThickness="0" Background="Transparent" FontFamily="{Binding EditorFont, Mode=OneWay}" FontSize="{Binding EditorFontSize, Mode=OneWay}" Padding="18,8" KeyDown="InlineAi_KeyDown">
+                            <TextBox.ContextMenu><ContextMenu>
+                                <MenuItem Header="KI hier schreiben (Ctrl+K)" Click="InlineAi_Open_Click"/>
+                                <MenuItem Header="Auswahl mit KI umschreiben" Click="InlineAi_Open_Click"/>
+                                <MenuItem Header="AI-Marker einfügen" Click="InlineAi_Marker_Click"/>
+                                <MenuItem Header="KI-Marker ausführen" Click="InlineAi_RunMarker_Click"/>
+                            </ContextMenu></TextBox.ContextMenu>
+                        </TextBox>
                     </Border>
                     <TextBlock FontSize="12" Foreground="{StaticResource FgMuted}" HorizontalAlignment="Center" Margin="0,8,0,0">
                         <Run Text="Wörter: "/><Run Text="{Binding WordCount, Mode=OneWay}"/><Run Text="  ·  Zeichen: "/><Run Text="{Binding CharCount, Mode=OneWay}"/><Run Text="  ·  Lesezeit: "/><Run Text="{Binding ReadingMinutes, Mode=OneWay}"/><Run Text=" Min"/>
@@ -43,6 +50,9 @@
                             <TextBox Text="{Binding ReplaceText}" Width="170" Margin="0,0,6,0"/>
                             <Button Content="Ersetzen" Command="{Binding DoReplaceCommand}"/>
                             <Button Content="Snapshot erstellen" Command="{Binding CreateSnapshotCommand}" Style="{StaticResource PrimaryButton}" Margin="14,0,0,0"/>
+                            <Button Content="KI hier schreiben (Ctrl+K)" Click="InlineAi_Open_Click" Margin="8,0,0,0"/>
+                            <Button Content="AI-Marker einfügen" Click="InlineAi_Marker_Click" Margin="8,0,0,0"/>
+                            <Button Content="KI-Marker ausführen" Click="InlineAi_RunMarker_Click" Margin="8,0,0,0"/>
                         </StackPanel>
                         <TextBlock Text="{Binding FindResult}" Foreground="{StaticResource FgMuted}" FontSize="12" Margin="0,6,0,0"/>
                     </DockPanel>
@@ -254,9 +264,14 @@
                                     <MenuItem Header="Geheimnis" Click="BoardNodeMenu_Click" Tag="Mystery"/>
                                     <MenuItem Header="Gegenstand" Click="BoardNodeMenu_Click" Tag="Object"/>
                                 </MenuItem>
-                                <MenuItem Header="Neues verbundenes Schreibfeld" Click="BoardNodeMenu_Click" Tag="Note"/>
-                                <MenuItem Header="Neue Idee erstellen" Click="BoardNodeMenu_Click" Tag="Idea"/>
-                                <MenuItem Header="Neue Recherche erstellen" Click="BoardNodeMenu_Click" Tag="Research"/>
+                                <MenuItem Header="Sonstiges / Eigen">
+                                    <MenuItem Header="Leeres Panel / Notiz" Click="BoardNodeMenu_Click" Tag="Note"/>
+                                    <MenuItem Header="Idee" Click="BoardNodeMenu_Click" Tag="Idea"/>
+                                    <MenuItem Header="Recherche" Click="BoardNodeMenu_Click" Tag="Research"/>
+                                    <MenuItem Header="KI-Notiz" Click="BoardNodeMenu_Click" Tag="AiNote"/>
+                                </MenuItem>
+                                <MenuItem Header="KI-Ideen für Unterpanels…" Click="BoardNodeMenu_Click" Tag="AiIdeas"/>
+                                <MenuItem Header="Als KI-Prompt an KI-Assistent senden" Click="BoardNodeMenu_Click" Tag="AiSend"/>
                                 <Separator/>
                                 <MenuItem Header="Verbindung erstellen" Click="BoardNodeMenu_Click" Tag="Connect"/>
                                 <MenuItem Header="Duplizieren" Click="BoardNodeMenu_Click" Tag="Duplicate"/>

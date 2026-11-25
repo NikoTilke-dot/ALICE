@@ -107,13 +107,13 @@ public sealed class ImportExportService : IImportExportService
             foreach (var sc in p.Nodes.Where(n => n.ParentId == ch.Id).OrderBy(n => n.SortOrder))
             {
                 sb.AppendLine(); sb.AppendLine($"* * *"); sb.AppendLine();
-                sb.AppendLine(sc.Content);
+                sb.AppendLine(InlineAiMarkers.Strip(sc.Content));
                 if (includeNotes && !string.IsNullOrWhiteSpace(sc.Notes)) sb.AppendLine($"\n[Notiz: {sc.Notes}]");
             }
         }
         // lose Szenen ohne Kapitel
         foreach (var sc in p.Nodes.Where(n => (n.Kind == NodeKind.Scene || n.Kind == NodeKind.SubScene) && (n.ParentId == null || p.Find(n.ParentId.Value)?.Kind != NodeKind.Chapter)).OrderBy(n => n.SortOrder))
-        { sb.AppendLine(); sb.AppendLine(sc.Content); }
+        { sb.AppendLine(); sb.AppendLine(InlineAiMarkers.Strip(sc.Content)); }
         // Storyboard-Boards (Panels + Verbindungen) als Anhang
         if (includeBoards) foreach (var wb in p.Whiteboards)
         {
@@ -145,7 +145,7 @@ public sealed class ImportExportService : IImportExportService
         {
             sb.AppendLine($"\n## {ch.Title}");
             foreach (var sc in p.Nodes.Where(n => n.ParentId == ch.Id).OrderBy(n => n.SortOrder))
-            { sb.AppendLine("\n* * *\n"); sb.AppendLine(sc.Content); }
+            { sb.AppendLine("\n* * *\n"); sb.AppendLine(InlineAiMarkers.Strip(sc.Content)); }
         }
         return sb.ToString();
     }

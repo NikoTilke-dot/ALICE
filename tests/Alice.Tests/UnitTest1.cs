@@ -260,7 +260,7 @@ public sealed class StoryboardTests
     [Fact]
     public void BoardNodeTypes_has14()
     {
-        Assert.Equal(33, BoardNodeTypes.All.Count);
+        Assert.Equal(34, BoardNodeTypes.All.Count);
         Assert.Equal("Buch", BoardNodeTypes.LabelOf(BoardNodeType.Book));
         Assert.Equal("Hauptfigur", BoardNodeTypes.LabelOf(BoardNodeType.MainCharacter));
         Assert.Equal("Nebenfigur", BoardNodeTypes.LabelOf(BoardNodeType.SideCharacter));
@@ -395,5 +395,24 @@ public sealed class HierarchyTests
         var back = JsonSerializer.Deserialize<AliceProject>(json)!;
         var heroBack = back.Whiteboards[0].Nodes.Single(n => n.Title == "Held");
         Assert.Equal(book.Id, heroBack.ParentId);
+    }
+}
+
+public sealed class InlineAiMarkerTests
+{
+    [Fact]
+    public void Extract_single() => Assert.Single(InlineAiMarkers.Extract("A {{AI: Beschreibung }} B"));
+    [Fact]
+    public void Extract_multiple() => Assert.Equal(2, InlineAiMarkers.Extract("{{AI: eins}} x {{AI:zwei}}").Count);
+    [Fact]
+    public void Extract_unfinished_ignored() => Assert.Empty(InlineAiMarkers.Extract("{{AI: offen"));
+    [Fact]
+    public void Strip_removes() => Assert.DoesNotContain("AI:", InlineAiMarkers.Strip("A {{AI: x}} B"));
+    [Fact]
+    public void Create_roundtrip()
+    {
+        var m = InlineAiMarkers.Create("Text");
+        var f = Assert.Single(InlineAiMarkers.Extract(m));
+        Assert.Equal("Text", f.Instruction);
     }
 }

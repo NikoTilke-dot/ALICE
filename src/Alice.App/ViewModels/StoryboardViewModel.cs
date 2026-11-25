@@ -398,6 +398,13 @@ public partial class StoryboardViewModel : ObservableObject
         SelectedNode = vm.IsSelected ? vm : Nodes.LastOrDefault(n => n.IsSelected);
     }
     public void SelectConnection(BoardConnectionVm? c) { SelectedConnection = c; if (c is not null) SelectOnly(null); }
+    /// <summary>Marquee-Auswahl: alle sichtbaren Panels im Rechteck (Board-Koordinaten) auswählen.</summary>
+    public void SelectRect(double x1, double y1, double x2, double y2)
+    {
+        foreach (var n in Nodes) n.IsSelected = n.IsVisible && x1 < n.X + n.Width && x2 > n.X && y1 < n.Y + n.Height && y2 > n.Y;
+        SelectedNode = Nodes.LastOrDefault(n => n.IsSelected);
+        StatusText = Nodes.Count(n => n.IsSelected) + " Panel(s) ausgewählt.";
+    }
     public IEnumerable<BoardNodeVm> SelectedNodes => Nodes.Where(n => n.IsSelected);
 
     // ---------- Verbindungen ----------

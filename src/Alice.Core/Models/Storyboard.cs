@@ -1,7 +1,7 @@
 namespace Alice.Core.Models;
 
 /// <summary>Typ eines Storyboard-Nodes (Vorlage mit Farbe + Symbol).</summary>
-public enum BoardNodeType { Book, MainCharacter, SideCharacter, Antagonist, SupportingCharacter, CharacterIdea, Note, Character, Location, World, Continent, Country, Kingdom, City, Village, Faction, Culture, Religion, MagicSystem, Technology, Lore, Event, Chapter, Scene, Plot, Subplot, Conflict, TurningPoint, Object, Mystery, Idea, Research, Custom }
+public enum BoardNodeType { Book, MainCharacter, SideCharacter, Antagonist, SupportingCharacter, CharacterIdea, Note, Character, Location, World, Continent, Country, Kingdom, City, Village, Faction, Culture, Religion, MagicSystem, Technology, Lore, Event, Chapter, Scene, Plot, Subplot, Conflict, TurningPoint, Object, Mystery, Idea, Research, Custom, AiNote }
 
 /// <summary>Typ einer Verbindung zwischen Nodes.</summary>
 public enum BoardConnectionKind { Normal, ParentChild, Dependency, Relation, Temporal, Conflict, Reference, Custom }
@@ -49,6 +49,7 @@ public static class BoardNodeTypes
         new(BoardNodeType.Idea, "Idee", "#FBBF24", "\uE854"),
         new(BoardNodeType.Research, "Recherche", "#38BDF8", "\uE721"),
         new(BoardNodeType.Custom, "Eigene Kategorie", "#9FA2BC", "\uE70B"),
+        new(BoardNodeType.AiNote, "KI-Notiz", "#F472B6", "\uE8A0"),
     ];
 
     public static Info Of(BoardNodeType t) => All.FirstOrDefault(x => x.Type == t) ?? All[0];

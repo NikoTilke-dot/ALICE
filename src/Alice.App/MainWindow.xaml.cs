@@ -12,6 +12,12 @@ public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm;
 
+    // Storyboard-Interaktionszustände (nie überlappend; Capture nur während echter Aktivitaet)
+    private enum BoardState { Idle, Selecting, MovingNode, MovingCanvas, EditingText, Resizing, CreatingConnection, Marquee }
+    private BoardState _boardState = BoardState.Idle;
+    private bool _spaceDown;
+    private System.Windows.Shapes.Rectangle? _marqueeRect;
+    private Point _marqueeStart; private bool _marquee = false;
     // Storyboard-Drag-Zustand
     private bool _panning; private Point _panStart; private double _panX0, _panY0;
     private BoardNodeVm? _dragNode; private Point _dragStart; private List<(BoardNodeVm Node, double X, double Y)> _dragSet = [];
@@ -30,6 +36,7 @@ public partial class MainWindow : Window
             if (e.NewValue is NavigatorNode n) _vm.SelectedNavigatorItem = n;
         };
         PreviewKeyDown += MainWindow_PreviewKeyDown;
+        PreviewKeyUp += MainWindow_PreviewKeyUp;
     }
 
     // ---------- Helpers ----------
@@ -60,6 +67,7 @@ public partial class MainWindow : Window
 
     private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Space) _spaceDown = true;
         if (!IsBoardActive()) return;
         var focusedElement = Keyboard.Focus; if (focusedElement is System.Windows.Controls.TextBox) return; // Textbearbeitung nicht abfangen
         var bvm = (StoryboardViewModel)_vm.CurrentWorkspace!;
@@ -67,6 +75,7 @@ public partial class MainWindow : Window
         else if (e.Key == Key.Z && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control) { bvm.UndoBoardCommand.Execute(null); e.Handled = true; }
         else if (e.Key == Key.Y && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control) { bvm.RedoBoardCommand.Execute(null); e.Handled = true; }
     }
+    private void MainWindow_PreviewKeyUp(object sender, KeyEventArgs e) { if (e.Key == Key.Space) _spaceDown = false; }
 
     // ---------- Viewport: Pan / Zoom / Rechtsklick ----------
     private void BoardViewport_PreviewMouseDown(object sender, MouseButtonEventArgs e)
@@ -77,14 +86,15 @@ public partial class MainWindow : Window
         // Klick auf freie Fläche (nicht auf Node/Verbindung): Pan mit Linksklick, wenn Hand-Werkzeug; sonst Auswahl aufheben
         if (e.OriginalSource is Border || e.OriginalSource is Grid || e.OriginalSource == viewport)
         {
-            if (bvm.IsHandTool || e.MiddleButton == MouseButtonState.Pressed)
+            if (bvm.IsHandTool || e.MiddleButton == MouseButtonState.Pressed || _spaceDown)
             {
-                _panning = true; _panStart = e.GetPosition(viewport); _panX0 = bvm.PanX; _panY0 = bvm.PanY;
+                _boardState = BoardState.MovingCanvas; _panning = true; _panStart = e.GetPosition(viewport); _panX0 = bvm.PanX; _panY0 = bvm.PanY;
                 viewport.CaptureMouse(); e.Handled = true;
             }
-            else if (e.LeftButton == MouseButtonState.Pressed && (Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift)
+            else if (e.LeftButton == MouseButtonState.Pressed)
             {
-                bvm.SelectOnly(null); bvm.SelectConnection(null);
+                // Marquee: erst ab >4px Bewegung (einfacher Klick hebt Auswahl auf)
+                _boardState = BoardState.Marquee; _marquee = false; _marqueeStart = e.GetPosition(viewport); e.Handled = true;
             }
         }
     }
@@ -101,6 +111,22 @@ public partial class MainWindow : Window
     {
         if (!IsBoardActive()) return;
         var bvm = BoardVmOf(sender as DependencyObject); if (bvm is null) return;
+        if (_boardState == BoardState.Marquee && e.LeftButton == MouseButtonState.Pressed)
+        {
+            var pos = e.GetPosition((Border)FindViewport()!);
+            if (!_marquee && Math.Abs(pos.X - _marqueeStart.X) + Math.Abs(pos.Y - _marqueeStart.Y) > 4)
+            {
+                _marquee = true;
+                _marqueeRect = new System.Windows.Shapes.Rectangle { Fill = new SolidColorBrush(Color.FromArgb(60, 124, 124, 244)), Stroke = new SolidColorBrush(Color.FromRgb(124, 124, 244)), StrokeThickness = 1 };
+                (FindOverlay() as Canvas)?.Children.Add(_marqueeRect);
+            }
+            if (_marquee && _marqueeRect is not null)
+            {
+                Canvas.SetLeft(_marqueeRect, Math.Min(_marqueeStart.X, pos.X)); Canvas.SetTop(_marqueeRect, Math.Min(_marqueeStart.Y, pos.Y));
+                _marqueeRect.Width = Math.Abs(pos.X - _marqueeStart.X); _marqueeRect.Height = Math.Abs(pos.Y - _marqueeStart.Y);
+            }
+            return;
+        }
         if (_panning)
         {
             var pos = e.GetPosition((Border)sender);
@@ -114,6 +140,7 @@ public partial class MainWindow : Window
             {
                 bvm.BeginChange();
                 // Echter Drag startet: erst JETZT Capture ergreifen (auf der Viewport).
+                _boardState = BoardState.MovingNode;
                 if (FindViewport() is FrameworkElement vp) vp.CaptureMouse();
                 _dragNode = _pendingNode; _dragSet = _pendingSet; _dragStart = _pendingStart; _pendingNode = null;
             }
@@ -145,8 +172,22 @@ public partial class MainWindow : Window
     private void BoardViewport_PreviewMouseUp(object sender, MouseButtonEventArgs e)
     {
         var bvm = BoardVmOf(sender as DependencyObject);
-        if (_panning) { _panning = false; (sender as Border)?.ReleaseMouseCapture(); }
-        _pendingNode = null;
+        // Zentral: Capture IMMER freigeben, egal welches Element sie hat (Panel/Handle/Viewport).
+        if (Mouse.Captured is FrameworkElement captured) captured.ReleaseMouseCapture();
+        if (_boardState == BoardState.Marquee)
+        {
+            var up = e.GetPosition((Border)FindViewport()!);
+            if (_marquee && bvm is not null)
+            {
+                var a = ToBoard(bvm, _marqueeStart); var bb = ToBoard(bvm, up);
+                bvm.SelectRect(Math.Min(a.x, bb.x), Math.Min(a.y, bb.y), Math.Max(a.x, bb.x), Math.Max(a.y, bb.y));
+            }
+            else bvm?.SelectOnly(null);
+            if (_marqueeRect is not null) { (FindOverlay() as Canvas)?.Children.Remove(_marqueeRect); _marqueeRect = null; }
+        }
+        _boardState = BoardState.Idle;
+        if (_panning) _panning = false;
+        _pendingNode = null; _pendingSet = []; _marquee = false;
         if (_dragNode is not null) { _dragNode = null; _dragSet = []; bvm?.EndChange(); }
         if (_resizeNode is not null) { _resizeNode = null; bvm?.EndChange(); }
         if (_portSource is not null)
@@ -242,6 +283,7 @@ public partial class MainWindow : Window
         var bvm = BoardVmOf(handle); if (bvm is null) return;
         if (handle.DataContext is not BoardNodeVm node) return;
         bvm.BeginChange();
+        _boardState = BoardState.Resizing;
         _resizeNode = node; _resizeW = node.Width; _resizeH = node.Height;
         _dragStart = e.GetPosition((Border)FindViewport()!);
         handle.CaptureMouse(); e.Handled = true;
@@ -252,6 +294,7 @@ public partial class MainWindow : Window
         if (!IsBoardActive()) return;
         var bvm = BoardVmOf(sender as DependencyObject); if (bvm is null) return;
         if ((sender as FrameworkElement)?.DataContext is not BoardNodeVm node) return;
+        _boardState = BoardState.CreatingConnection;
         _portSource = node;
         var overlay = FindOverlay() as Canvas;
         if (overlay is not null)
@@ -265,6 +308,97 @@ public partial class MainWindow : Window
         }
         (sender as FrameworkElement)?.CaptureMouse();
         e.Handled = true;
+    }
+
+    // ---------- Inline-KI im Manuskript (Workflow A/B/C/D) ----------
+    private void InlineAi_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.K && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        { InlineAi_Open(sender, e); e.Handled = true; }
+    }
+    private void InlineAi_Open_Click(object sender, RoutedEventArgs e) => InlineAi_Open(sender, e);
+    private void InlineAi_Open(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox tb || tb.DataContext is not EditorViewModel editor) return;
+        if (_vm.Project is null) { _vm.StatusText = "Kein Projekt geöffnet."; return; }
+        var p = _vm.Project;
+        var selection = tb.SelectionLength > 0 ? tb.SelectedText : string.Empty;
+        // Umgebender Text: ±500 Zeichen um den Cursor
+        var full = editor.Text ?? string.Empty; var caret = Math.Clamp(tb.SelectionStart, 0, full.Length);
+        var from = Math.Max(0, caret - 500); var to = Math.Min(full.Length, caret + 500);
+        var scene = full.Substring(from, to - from);
+        var chars = string.Join("\n", p.Characters.Select(c => "- " + c.Name + ": " + c.Description));
+        var world = string.Join("\n", p.WorldEntries.Select(w => "- " + w.Title + ": " + w.Description));
+        var board = _vm.Project.Whiteboards.SelectMany(w => w.Nodes.Select(n => "- [" + Alice.Core.Models.BoardNodeTypes.LabelOf(n.NodeType) + "] " + n.Title + (string.IsNullOrWhiteSpace(n.Text) ? "" : ": " + n.Text))).ToList();
+        var dlg = new InlineAiDialog(_vm.Ai.CurrentProvider, selection, scene, chars, world, string.Join("\n", board), p.Title, _vm.Ai.SelectedDeepAiModel) { Owner = this };
+        if (dlg.ShowDialog() != true) return; // Verwerfen: Manuskript unverändert
+        if (string.IsNullOrEmpty(dlg.GeneratedText)) return;
+        // Nur nach ausdrücklicher Bestätigung schreiben - Ersetzen oder Einfügen am Cursor
+        if (dlg.ChosenMode == "Replace" && tb.SelectionLength > 0)
+        {
+            var start = tb.SelectionStart;
+            tb.SelectedText = dlg.GeneratedText;
+            tb.SelectionStart = start + dlg.GeneratedText.Length; tb.SelectionLength = 0;
+        }
+        else
+        {
+            tb.Text = tb.Text.Insert(tb.SelectionStart, dlg.GeneratedText);
+            tb.SelectionStart += dlg.GeneratedText.Length; tb.SelectionLength = 0;
+        }
+        tb.Focus();
+        _vm.StatusText = "KI-Text übernommen (Anweisung nicht im Manuskript).";
+    }
+    private void InlineAi_Marker_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox tb) { var tb2 = FindByName(this, "EditorTextBox") as TextBox; if (tb2 is null) return; tb = tb2; }
+        var marker = Alice.Core.Models.InlineAiMarkers.Create("Anweisung hier eingeben");
+        tb.Text = tb.Text.Insert(tb.SelectionStart, marker);
+        tb.SelectionStart += marker.Length - 24; tb.Focus();
+        _vm.StatusText = "{{AI}}-Marker eingefügt – Anweisung editieren, dann „KI-Marker ausführen“.";
+    }
+    private void InlineAi_RunMarker_Click(object? sender, RoutedEventArgs e)
+    {
+        var tb = FindByName(this, "EditorTextBox") as TextBox; if (tb is null || _vm.Project is null) return;
+        var markers = Alice.Core.Models.InlineAiMarkers.Extract(tb.Text);
+        if (markers.Count == 0) { _vm.StatusText = "Kein abgeschlossener {{AI:…}}-Marker gefunden (unabgeschlossene bleiben unangetastet)."; return; }
+        var first = markers[0];
+        tb.SelectionStart = first.Index; tb.SelectionLength = 0;
+        // Marker-Instruction in den Inline-KI-Dialog vorbefüllen und nur nach Bestätigung ersetzen
+        var p = _vm.Project;
+        var dlg = new InlineAiDialog(_vm.Ai.CurrentProvider, string.Empty, tb.Text, string.Join("\n", p.Characters.Select(c => "- " + c.Name + ": " + c.Description)), string.Join("\n", p.WorldEntries.Select(w => "- " + w.Title + ": " + w.Description)), string.Empty, p.Title, _vm.Ai.SelectedDeepAiModel) { Owner = this };
+        dlg.PromptText.Text = first.Instruction;
+        if (dlg.ShowDialog() != true) return;
+        if (string.IsNullOrEmpty(dlg.GeneratedText)) return;
+        var fresh = Alice.Core.Models.InlineAiMarkers.Extract(tb.Text);
+        if (fresh.Count == 0) return;
+        var m = fresh[0];
+        tb.Text = tb.Text.Remove(m.Index, m.Length).Insert(m.Index, dlg.GeneratedText);
+        tb.SelectionStart = m.Index + dlg.GeneratedText.Length; tb.Focus();
+        _vm.StatusText = "KI-Marker ausgeführt und durch Text ersetzt.";
+    }
+
+    // ---------- KI im Storyboard (Vorschlaege / Prompt senden) ----------
+    private void OpenAiSuggestions(BoardNodeVm parent)
+    {
+        var ctx = "Eltern-Panel: " + Alice.Core.Models.BoardNodeTypes.LabelOf(parent.Model.NodeType) + " - " + parent.Title;
+        if (!string.IsNullOrWhiteSpace(parent.Text)) ctx += " Inhalt: " + parent.Text;
+        var dlg = new AiSuggestionsDialog(_vm.Ai.CurrentProvider, parent.Title, ctx) { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+        var bvm = BoardVmOf(this); if (bvm is null) return;
+        foreach (var s in dlg.Accepted)
+        {
+            var parts = s.Split(':', 2);
+            var child = bvm.AddConnectedNode(parent, Alice.Core.Models.BoardNodeType.Idea);
+            if (child is null) continue;
+            child.Title = parts[0].Trim();
+            if (parts.Length > 1) child.Text = parts[1].Trim();
+        }
+        _vm.StatusText = dlg.Accepted.Count + " KI-Vorschlaege als verbundene Unterpanels erstellt.";
+    }
+    private void SendPanelToAi(BoardNodeVm node)
+    {
+        _vm.Ai.Input = (node.Text ?? string.Empty).Trim();
+        _vm.Ai.Status = "Panel als Prompt uebernommen - pruefen und Senden druecken.";
     }
 
     // ---------- Storyboard als PNG (RenderTargetBitmap der Canvas) ----------
@@ -323,6 +457,8 @@ public partial class MainWindow : Window
             case "Collapse": bvm.ToggleCollapseSelectedCommand.Execute(null); break;
             case "Children": bvm.ToggleChildrenCommand.Execute(null); break;
             case "Convert": bvm.ConvertToCharacterCommand.Execute(null); break;
+            case "AiIdeas": OpenAiSuggestions(node); break;
+            case "AiSend": SendPanelToAi(node); break;
             case "Parent": bvm.GoToParentCommand.Execute(null); break;
             case "Book": bvm.GoToBookCommand.Execute(null); break;
             case "Delete": bvm.DeleteSelectedCommand.Execute(null); break;
