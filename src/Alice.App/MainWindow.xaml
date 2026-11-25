@@ -244,6 +244,7 @@
                                 <MenuItem Header="Als KI-Prompt an KI-Assistent senden" Click="BoardNodeMenu_Click" Tag="AiSend"/>
                                 <Separator/>
                                 <MenuItem Header="Verbindung erstellen" Click="BoardNodeMenu_Click" Tag="Connect"/>
+                                <MenuItem Header="Unter anderes Panel einhängen… (Klick aufs Ziel)" Click="BoardNodeMenu_Click" Tag="Reparent" ToolTip="Danach Ziel-Panel anklicken"/>
                                 <MenuItem Header="Duplizieren" Click="BoardNodeMenu_Click" Tag="Duplicate"/>
                                 <MenuItem Header="Kopieren" Click="BoardNodeMenu_Click" Tag="Copy"/>
                                 <MenuItem Header="Ausschneiden" Click="BoardNodeMenu_Click" Tag="Cut"/>

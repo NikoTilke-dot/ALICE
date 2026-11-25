@@ -158,7 +158,25 @@ public partial class MainWindow : Window
         _boardState = BoardState.Idle;
         if (_panning) _panning = false;
         _pendingNode = null; _pendingSet = [];
-        if (_dragNode is not null) { _dragNode = null; _dragSet = []; bvm?.EndChange(); }
+        if (_dragNode is not null)
+        {
+            var dragged = _dragNode;
+            // Drag & Drop: Panel auf anderes Panel fallen lassen = Kind desselben Panels werden.
+            // Nur bei Einzel-Drag (nicht Mehrfach-Auswahl). Gezogenes Panel selbst als Ziel ausschliessen.
+            BoardNodeVm? target = null;
+            if (_dragSet.Count <= 1 && bvm is not null)
+            {
+                var pos = e.GetPosition((Border)FindViewport()!);
+                var (bx, by) = ToBoard(bvm, pos);
+                target = bvm.Nodes.LastOrDefault(n => n.IsVisible && n.Id != dragged.Id && bx >= n.X && bx <= n.X + n.Width && by >= n.Y && by <= n.Y + n.Height);
+            }
+            _dragNode = null; _dragSet = [];
+            if (target is not null && target.Id != dragged.Id)
+            {
+                bvm?.ReparentChild(dragged, target);
+            }
+            bvm?.EndChange();
+        }
         if (_resizeNode is not null) { _resizeNode = null; bvm?.EndChange(); }
         if (_portSource is not null)
         {
@@ -224,6 +242,7 @@ public partial class MainWindow : Window
         var bvm = BoardVmOf(card); if (bvm is null) return;
         if (card.DataContext is not BoardNodeVm node) return;
         _boardState = BoardState.Selecting;
+        if (bvm.HandleNodeClickForReparent(node)) { _boardState = BoardState.CreatingConnection; e.Handled = true; return; }
         if (bvm.HandleNodeClickForConnect(node)) { _boardState = BoardState.CreatingConnection; e.Handled = true; return; }
         if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift) bvm.ToggleSelect(node);
         else if (!node.IsSelected) bvm.SelectOnly(node);
@@ -450,6 +469,7 @@ public partial class MainWindow : Window
             case "Collapse": bvm.ToggleCollapseSelectedCommand.Execute(null); break;
             case "Children": bvm.ToggleChildrenCommand.Execute(null); break;
             case "Convert": bvm.ConvertToCharacterCommand.Execute(null); break;
+            case "Reparent": bvm.StartReparentFrom(node); break;
             case "AiIdeas": OpenAiSuggestions(node); break;
             case "AiSend": SendPanelToAi(node); break;
             case "Parent": bvm.GoToParentCommand.Execute(null); break;

@@ -436,6 +436,45 @@ public partial class StoryboardViewModel : ObservableObject
         }
         return true;
     }
+    // ---------- Eltern ändern (Drag auf Panel / Klick-Modus) ----------
+    public bool IsDescendantOf(Guid nodeId, Guid ancestorId) // Zyklusschutz
+    {
+        var cur = FindNode(nodeId)?.Model.ParentId;
+        while (cur is { } c) { if (c == ancestorId) return true; cur = FindNode(c)?.Model.ParentId; }
+        return false;
+    }
+    /// <summary>child wird Kind von newParent (Baum zieht mit). Alte Eltern-Linie weg, neue Linie her.</summary>
+    public bool ReparentChild(BoardNodeVm child, BoardNodeVm newParent)
+    {
+        if (ActiveBoard is null || child.Id == newParent.Id) return false;
+        if (newParent.Model.IsBookPanel && child.Model.IsBookPanel) return false;
+        if (IsDescendantOf(newParent.Id, child.Id)) { StatusText = "Nicht möglich (wäre ein Kreis)."; return false; }
+        BeginChange();
+        var oldPid = child.Model.ParentId;
+        if (oldPid is { } op)
+        {
+            ActiveBoard.Connections.RemoveAll(c => c.FromNodeId == op && c.ToNodeId == child.Id);
+            for (int i = Connections.Count - 1; i >= 0; i--) if (Connections[i].Model.FromNodeId == op && Connections[i].Model.ToNodeId == child.Id) Connections.RemoveAt(i);
+        }
+        child.Model.ParentId = newParent.Id;
+        if (!ActiveBoard.Connections.Any(c => c.FromNodeId == newParent.Id && c.ToNodeId == child.Id))
+        {
+            var conn = new BoardConnection { FromNodeId = newParent.Id, ToNodeId = child.Id, Kind = BoardConnectionKind.ParentChild };
+            ActiveBoard.Connections.Add(conn); Connections.Add(new BoardConnectionVm(conn, FindNode));
+        }
+        EndChange(); StatusText = $"„{child.Title}“ ist jetzt Kind von „{newParent.Title}“ (inkl. Unterbaum).";
+        return true;
+    }
+    private BoardNodeVm? _reparentSource;
+    public bool IsReparentMode { get; private set; }
+    public void StartReparentFrom(BoardNodeVm node) { IsReparentMode = true; _reparentSource = node; SelectOnly(node); StatusText = $"Quelle: „{node.Title}“. Jetzt das neue Eltern-Panel anklicken."; }
+    public bool HandleNodeClickForReparent(BoardNodeVm vm)
+    {
+        if (!IsReparentMode || _reparentSource is null) return false;
+        if (vm.Id != _reparentSource.Id) ReparentChild(_reparentSource, vm);
+        _reparentSource = null; IsReparentMode = false;
+        return true;
+    }
     public void CreateConnection(BoardNodeVm from, BoardNodeVm to)
     {
         if (ActiveBoard is null || from.Id == to.Id) return;
