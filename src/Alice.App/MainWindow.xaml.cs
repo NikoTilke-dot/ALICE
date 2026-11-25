@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Shapes;
@@ -410,12 +410,19 @@ public partial class MainWindow : Window
     private void BoardCanvasMenu_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem mi || !IsBoardActive()) return;
-        var ctx = mi.Parent as ContextMenu; var target = ctx?.PlacementTarget as Border; if (target is null) return;
+        // Canvas-Menue ist entfernt; Handler bleibt nur als toter Code (kein Aufruf mehr).
+        var pp = mi.Parent; while (pp is MenuItem pmm) pp = pmm.Parent;
+        var ctx = pp as ContextMenu; var target = ctx?.PlacementTarget as Border; if (target is null) return;
         var bvm = BoardVmOf(target); if (bvm is null) return;
         var tag = mi.Tag as string ?? "Note";
         switch (tag)
         {
-            case "Connect": bvm.ToggleConnectCommand.Execute(null); break;
+            case "Connect":
+                // Untermenue-Eintraege: Parent ist Eltern-MenuItem, nicht ContextMenu - nach oben laufen.
+                var p2 = mi.Parent; while (p2 is MenuItem pm2) p2 = pm2.Parent;
+                var ctx2 = p2 as ContextMenu; var target2 = ctx2?.PlacementTarget as Border; if (target2 is null) return;
+                if (BoardVmOf(target2) is null) return;
+                bvm.ToggleConnectCommand.Execute(null); break;
             case "Paste": bvm.NodesFromClipboardCommand.Execute(null); break;
             default: bvm.AddAtPending(tag); break;
         }
@@ -425,7 +432,10 @@ public partial class MainWindow : Window
     private void BoardNodeMenu_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem mi || !IsBoardActive()) return;
-        var ctx = mi.Parent as ContextMenu; var target = ctx?.PlacementTarget as Border; if (target is null) return;
+        // FEHLERFIX: Untermenue-Eintraege haben als Parent das Eltern-MenuItem, nicht das ContextMenu.
+        // Ohne diese Schleife ist target null und KEIN Menueeintrag erzeugte je ein Panel.
+        var pp = mi.Parent; while (pp is MenuItem pmm) pp = pmm.Parent;
+        var ctx = pp as ContextMenu; var target = ctx?.PlacementTarget as Border; if (target is null) return;
         var bvm = BoardVmOf(target); if (bvm is null) return;
         if (target.DataContext is not BoardNodeVm node) return;
         var tag = mi.Tag as string ?? "Note";
@@ -458,3 +468,4 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 }
+
