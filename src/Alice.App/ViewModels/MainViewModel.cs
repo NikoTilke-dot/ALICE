@@ -337,8 +337,11 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand] private void Exit() => System.Windows.Application.Current.Shutdown();
-    [RelayCommand] private void Undo() => _editor.Undo();
-    [RelayCommand] private void Redo() => _editor.Redo();
+    /// <summary>Einstellungen sofort sichern (fuer Editor-Layout: Zoom/Groesse/Orientierung).</summary>
+    public Task SaveSettingsAsync() => _settings.SaveAsync();
+    // Hinweis: Formatierungs-Undo macht der RichTextBox-Editor selbst (Ctrl+Z/Ctrl+Y); Menü gibt nur die Anweisung weiter.
+    [RelayCommand] private void Undo() => _editor.UndoRequest();
+    [RelayCommand] private void Redo() => _editor.RedoRequest();
     [RelayCommand] private void ShowSearch() { ModeIndex = 0; StatusText = "Suche: tragen Sie unten einen Suchbegriff ein (Shift+F für weitere Optionen)."; }
     [RelayCommand] private void ShowReplace() => _editor.OpenReplace();
     [RelayCommand] private void ToggleNavigator() { ShowNavigator = !ShowNavigator; _settings.Current.ShowNavigator = ShowNavigator; }

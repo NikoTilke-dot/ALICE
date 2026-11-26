@@ -12,6 +12,8 @@ public sealed class ManuscriptNode
     public int SortOrder { get; set; }
     public bool IsFolder { get; set; }
     public string Content { get; set; } = string.Empty;
+    /// <summary>Optionaler FlowDocument-Entwurf (XAML), damit Formatierung erhalten bleibt. Content (Klartext) bleibt Source of Truth für Export/Suche.</summary>
+    public string? ContentRich { get; set; }
     public string Synopsis { get; set; } = string.Empty;
     public StoryStatus Status { get; set; } = StoryStatus.Idea;
     public string? PovCharacterId { get; set; }

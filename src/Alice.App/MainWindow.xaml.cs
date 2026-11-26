@@ -3,6 +3,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Shapes;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using Alice.App.ViewModels;
@@ -18,6 +19,10 @@ public partial class MainWindow : Window
     private enum BoardState { Idle, Selecting, MovingNode, MovingCanvas, EditingText, Resizing, CreatingConnection, Marquee }
     private BoardState _boardState = BoardState.Idle;
     private bool _spaceDown;
+    // Editor (DocumentViewer): Seitenzaehler + ausstehende "Next Page"-Navigation
+    private System.Windows.Threading.DispatcherTimer? _pageLabelTimer;
+    private int _pendingPageNext = -1;
+    private bool _fitZoomApplied;
     private System.Windows.Shapes.Rectangle? _marqueeRect;
     private Point _marqueeStart; private bool _marquee = false;
     // Storyboard-Drag-Zustand
@@ -51,6 +56,10 @@ public partial class MainWindow : Window
         // so dass Drags nicht nach dem ersten Move taub werden.
         PreviewMouseMove += BoardViewport_PreviewMouseMove;
         PreviewMouseUp += BoardViewport_PreviewMouseUp;
+        // Editor (Word-Ansicht) an Settings binden und Seitenzaehler nachfuehren.
+        _vm.PropertyChanged += (_, e) => { if (e.PropertyName is "CurrentWorkspace" or "ModeIndex") _ = Task.Run(async () => { await Task.Delay(280); await Dispatcher.InvokeAsync(ConnectEditor); }); };
+        _pageLabelTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
+        _pageLabelTimer.Tick += (_, _) => RefreshPageLabel();
     }
 
     // ---------- Helpers ----------
@@ -352,65 +361,414 @@ public partial class MainWindow : Window
         if (e.Key == Key.K && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
         { InlineAi_Open(sender, e); e.Handled = true; }
     }
+
+    // ---------- Editor: Word-artige Seitenansicht (DocumentViewer) ----------
+    private FlowDocumentPageViewer? EditorDoc() => FindByName(this, "EditorDocViewer") as FlowDocumentPageViewer;
+
+    /// <summary>Aktive RichTextBox des DocumentViewers (fuer Formatierung/Inline-KI). Fokus liegt im Editor auf diesem Element.</summary>
+    private RichTextBox? ActiveRichTextBox()
+    {
+        var fe = Keyboard.FocusedElement as RichTextBox;
+        if (fe is not null) return fe;
+        var doc = EditorDoc(); if (doc is null) return null;
+        return FindDescendant<RichTextBox>(doc, x => x.IsSelectionActive);
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root, Func<T, bool>? pred = null) where T : class
+    {
+        if (root is T t && (pred is null || pred(t))) return t;
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            var hit = FindDescendant<T>(child, pred);
+            if (hit is not null) return hit;
+        }
+        return null;
+    }
+
+    private void HookAllRichTextBoxes(FlowDocumentPageViewer viewer)
+    {
+        // Jede sichtbare (materialisierte) RichTextBox ans Debounce-Sync haengen
+        foreach (var rtb in FindAllDescendants<RichTextBox>(viewer))
+        {
+            if (rtb.Tag is not string || (string)rtb.Tag != "alice-synced")
+            {
+                rtb.Tag = "alice-synced";
+                rtb.TextChanged += (_, _) => _vm.Editor?.NotifyDocumentDirty();
+            }
+        }
+    }
+
+    private static IEnumerable<T> FindAllDescendants<T>(DependencyObject root) where T : DependencyObject
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T t) yield return t;
+            foreach (var deeper in FindAllDescendants<T>(child)) yield return deeper;
+        }
+    }
+
+    private TextRange? EditorSelectionRange(out bool hadSelection)
+    {
+        hadSelection = false;
+        var rtb = ActiveRichTextBox();
+        if (rtb?.Selection is null) return null;
+        try
+        {
+            var sel = rtb.Selection;
+            hadSelection = !string.IsNullOrEmpty(sel.Text);
+            return new TextRange(sel.Start, sel.End);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Text an der aktuellen Editor-Position einfuegen oder (bei Auswahl mit Replace) ersetzen.</summary>
+    private void EditorInsertText(string text, bool replaceSelection)
+    {
+        var editor = _vm.Editor;
+        var range = EditorSelectionRange(out var hadSelection);
+        if (range is null)
+        {
+            var end = editor.Document.ContentEnd;
+            new TextRange(end, end) { Text = text };
+            return;
+        }
+        if (replaceSelection && hadSelection) { range.Text = text; return; }
+        new TextRange(range.End, range.End) { Text = text };
+    }
+
+    private void ConnectEditor()
+    {
+        var v = EditorDoc(); var editor = _vm.Editor;
+        if (v is null || editor is null) { _pageLabelTimer?.Stop(); _ = Task.Run(async () => { await Task.Delay(900); await Dispatcher.InvokeAsync(ConnectEditor); }); return; }
+        var st = _vm.SettingsVm.Settings;
+        var doc = editor.Document;
+        doc.Background = System.Windows.Media.Brushes.White;
+        v.Foreground = System.Windows.Media.Brushes.Black;
+        try { doc.Foreground = System.Windows.Media.Brushes.Black; } catch { }
+        double marginIn = System.Math.Clamp(st.PageMarginMm, 10, 50) / 25.4;
+        doc.PagePadding = new System.Windows.Thickness(marginIn);
+        var (w, h) = (st.PageSize == "Letter") ? (8.5, 11.0) : (8.27, 11.69);
+        if (st.PageOrientation == "Landscape") (w, h) = (h, w);
+        doc.PageWidth = w; doc.PageHeight = h;
+        if (st.PageZoom == 1.0 && !_fitZoomApplied && v.ActualWidth > 200)
+        {
+            double pagePx = w * 96.0;
+            st.PageZoom = System.Math.Clamp((v.ActualWidth - 24) / Math.Max(pagePx, 1), 1.0, 2.0);
+            _fitZoomApplied = true;
+            _ = _vm.SaveSettingsAsync();
+        }
+        v.Zoom = System.Math.Clamp(st.PageZoom, 0.25, 2.5);
+        // Editor-Sync: TextChanged aller materialisierten RichTextBoxen an das Debounce haengen
+        HookAllRichTextBoxes(v);
+        RefreshPageLabel();
+        _pageLabelTimer?.Start();
+    }
+
+    private void RefreshPageLabel()
+    {
+        var v = EditorDoc(); var info = FindByName(this, "PageInfoText") as System.Windows.Controls.TextBlock;
+        var zoom = FindByName(this, "ZoomLabel") as System.Windows.Controls.TextBlock;
+        if (v is null) return;
+        HookAllRichTextBoxes(v); // neu materialisierte Seiten einhaengen
+        int cur = Math.Max(v.MasterPageNumber, 1); int total = Math.Max(v.PageCount, 1);
+        if (info is not null) info.Text = $"Seite {cur} von {total}";
+        if (zoom is not null) zoom.Text = $"{(int)System.Math.Round(v.Zoom * 100)}%";
+        if (_pendingPageNext >= 0 && total >= _pendingPageNext)
+        {
+            v.GoToPage(_pendingPageNext); _pendingPageNext = -1;
+        }
+    }
+
+    private void PageFirst_Click(object sender, RoutedEventArgs e) { EditorDoc()?.FirstPage(); RefreshPageLabel(); }
+    private void PagePrev_Click(object sender, RoutedEventArgs e) { EditorDoc()?.PreviousPage(); RefreshPageLabel(); }
+    private void PageLast_Click(object sender, RoutedEventArgs e) { EditorDoc()?.LastPage(); RefreshPageLabel(); }
+    private void PageNext_Click(object sender, RoutedEventArgs e)
+    {
+        var v = EditorDoc(); if (v is null) return;
+        if (v.MasterPageNumber < v.PageCount) { v.NextPage(); RefreshPageLabel(); return; }
+        // Letzte Seite: Leerabsaetze ANHAENGEN, bis die Paginierung eine neue Seite anlegt.
+        // (Ein einzelner Leerabsatz reicht NICHT, wenn die Seite noch halb leer ist.)
+        var doc = _vm.Editor.Document;
+        int target = v.MasterPageNumber + 1;
+        int guard = 0;
+        while (v.PageCount < target && guard++ < 200)
+        {
+            FlowDocumentTools.AppendEmptyParagraph(doc);
+            v.InvalidateMeasure(); v.UpdateLayout(); // Paginierung sofort neu berechnen
+        }
+        if (v.PageCount >= target)
+        {
+            v.GoToPage(target);
+            var end = doc.ContentEnd;
+            if (ActiveRichTextBox() is { } rtb)
+            {
+                try { rtb.Selection.Select(end, end); rtb.Focus(); } catch { }
+            }
+            RefreshPageLabel();
+            return;
+        }
+        _pendingPageNext = target;
+        _pageLabelTimer?.Start();
+    }
+    private void JumpPage_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Handled || e.Key != Key.Enter) return;
+        var v = EditorDoc(); if (v is null || sender is not System.Windows.Controls.TextBox box) return;
+        if (int.TryParse(box.Text.Trim(), out var n) && n >= 1 && n <= System.Math.Max(v.PageCount, 1)) v.GoToPage(n);
+        RefreshPageLabel(); e.Handled = true;
+    }
+
+    // ---------- Editor: Formatierung ----------
+    private void ApplyToggle(string name)
+    {
+        var range = EditorSelectionRange(out _);
+        if (range is null) { _vm.StatusText = "Bitte zuerst in den Text klicken."; return; }
+        switch (name)
+        {
+            case "Bold":
+            {
+                var cur = range.GetPropertyValue(TextElement.FontWeightProperty);
+                range.ApplyPropertyValue(TextElement.FontWeightProperty, cur is FontWeight w && w == FontWeights.Bold ? FontWeights.Normal : FontWeights.Bold);
+                break;
+            }
+            case "Italic":
+            {
+                var cur = range.GetPropertyValue(TextElement.FontStyleProperty);
+                range.ApplyPropertyValue(TextElement.FontStyleProperty, cur is FontStyle f && f == FontStyles.Italic ? FontStyles.Normal : FontStyles.Italic);
+                break;
+            }
+            case "Underline":
+            {
+                var underline = TextDecorations.Underline;
+                // Zustand am ersten Run der Auswahl pruefen
+                var first = FirstAffectedRun(range);
+                var cur = first?.TextDecorations;
+                var isUnderlined = cur is not null && cur.Any(d => d.Location == TextDecorationLocation.Underline);
+                foreach (var para in ParagraphsInRange(range).ToList())
+                    foreach (var run in para.Inlines.OfType<Run>())
+                        run.TextDecorations = isUnderlined ? null : underline;
+                break;
+            }
+            case "AlignLeft": case "AlignCenter": case "AlignRight": case "AlignJustify":
+            {
+                var align = name == "AlignLeft" ? TextAlignment.Left : name == "AlignCenter" ? TextAlignment.Center : name == "AlignRight" ? TextAlignment.Right : TextAlignment.Justify;
+                foreach (var para in ParagraphsInRange(range).ToList()) para.TextAlignment = align;
+                break;
+            }
+            case "Bullets": case "Numbering":
+            {
+                var style = name == "Bullets" ? System.Windows.TextMarkerStyle.Disc : System.Windows.TextMarkerStyle.Decimal;
+                var paras = ParagraphsInRange(range).ToList();
+                if (paras.Count == 0) break;
+                var home = paras[0].SiblingBlocks;
+                var nextSibling = paras[paras.Count - 1].NextBlock;
+                foreach (var para in paras) para.SiblingBlocks.Remove(para);
+                var list = new List { MarkerStyle = style };
+                foreach (var para in paras)
+                {
+                    var li = new ListItem();
+                    li.Blocks.Add(para);
+                    list.ListItems.Add(li);
+                }
+                if (nextSibling is not null) home.InsertBefore(nextSibling, list);
+                else home.Add(list);
+                break;
+            }
+            case "Heading1":
+                range.ApplyPropertyValue(TextElement.FontSizeProperty, 20.0);
+                range.ApplyPropertyValue(TextElement.FontWeightProperty, FontWeights.Bold); break;
+            case "Heading2":
+                range.ApplyPropertyValue(TextElement.FontSizeProperty, 16.0);
+                range.ApplyPropertyValue(TextElement.FontWeightProperty, FontWeights.Bold); break;
+            case "Normal":
+                range.ApplyPropertyValue(TextElement.FontWeightProperty, FontWeights.Normal);
+                if (double.TryParse(_vm.Editor.EditorFontSize, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var fs) && fs > 0)
+                    range.ApplyPropertyValue(TextElement.FontSizeProperty, fs);
+                break;
+        }
+    }
+
+    private static IEnumerable<Paragraph> ParagraphsInRange(TextRange range)
+    {
+        var start = range.Start.Paragraph;
+        var end = range.End.Paragraph;
+        if (start is null || end is null) yield break;
+        yield return start;
+        var cur = start.NextBlock;
+        while (cur is not null && cur != end)
+        {
+            if (cur is Paragraph p) yield return p;
+            cur = cur.NextBlock;
+        }
+        if (cur is Paragraph last && last != start) yield return last;
+    }
+
+    private static Run? FirstAffectedRun(TextRange range)
+    {
+        foreach (var para in ParagraphsInRange(range))
+            foreach (var run in para.Inlines.OfType<Run>())
+                return run;
+        return null;
+    }
+
+    private void FmtBold_Click(object sender, RoutedEventArgs e) => ApplyToggle("Bold");
+    private void FmtItalic_Click(object sender, RoutedEventArgs e) => ApplyToggle("Italic");
+    private void FmtUnderline_Click(object sender, RoutedEventArgs e) => ApplyToggle("Underline");
+    private void FmtAlignLeft_Click(object sender, RoutedEventArgs e) => ApplyToggle("AlignLeft");
+    private void FmtAlignCenter_Click(object sender, RoutedEventArgs e) => ApplyToggle("AlignCenter");
+    private void FmtAlignRight_Click(object sender, RoutedEventArgs e) => ApplyToggle("AlignRight");
+    private void FmtAlignJustify_Click(object sender, RoutedEventArgs e) => ApplyToggle("AlignJustify");
+    private void FmtBullets_Click(object sender, RoutedEventArgs e) => ApplyToggle("Bullets");
+    private void FmtNumbering_Click(object sender, RoutedEventArgs e) => ApplyToggle("Numbering");
+    private void FmtHeading1_Click(object sender, RoutedEventArgs e) => ApplyToggle("Heading1");
+    private void FmtHeading2_Click(object sender, RoutedEventArgs e) => ApplyToggle("Heading2");
+    private void FmtNormal_Click(object sender, RoutedEventArgs e) => ApplyToggle("Normal");
+
+    private void FmtFont_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        var editor = _vm.Editor; var box = sender as System.Windows.Controls.ComboBox;
+        var choice = (box?.SelectedValue as string) ?? editor.EditorFont;
+        if (string.IsNullOrWhiteSpace(choice)) return;
+        editor.EditorFont = choice;
+        var range = EditorSelectionRange(out var sel);
+        System.Windows.Media.FontFamily fam;
+        try { fam = new System.Windows.Media.FontFamily(choice); } catch { return; }
+        if (range is not null) range.ApplyPropertyValue(TextElement.FontFamilyProperty, fam);
+        else { editor.Document.FontFamily = fam; }
+    }
+    private void FmtSize_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        var editor = _vm.Editor; var box = sender as System.Windows.Controls.ComboBox;
+        var choice = (box?.SelectedValue as string) ?? editor.EditorFontSize;
+        if (!double.TryParse(choice, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var size) || size <= 0) return;
+        editor.EditorFontSize = choice;
+        var range = EditorSelectionRange(out var sel);
+        if (range is not null) range.ApplyPropertyValue(TextElement.FontSizeProperty, size);
+        else { editor.Document.FontSize = size; }
+    }
+
+    // ---------- Editor: Seite ----------
+    private void ZoomIn_Click(object sender, RoutedEventArgs e) => SetZoom(0.1);
+    private void ZoomOut_Click(object sender, RoutedEventArgs e) => SetZoom(-0.1);
+    private void SetZoom(double delta)
+    {
+        var v = EditorDoc(); if (v is null) return;
+        var st = _vm.SettingsVm.Settings;
+        v.Zoom = System.Math.Clamp(v.Zoom + delta, 0.25, 2.5);
+        st.PageZoom = v.Zoom;
+        _ = _vm.SettingsVm.SaveSettingsCommand; _ = _vm.SaveSettingsAsync();
+        RefreshPageLabel();
+    }
+    private void PageSize_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        var st = _vm.SettingsVm.Settings; var box = sender as System.Windows.Controls.ComboBox;
+        var choice = (box?.SelectedValue as string) ?? st.PageSize;
+        st.PageSize = (choice == "Letter") ? "Letter" : "A4";
+        _ = _vm.SaveSettingsAsync(); ConnectEditor();
+    }
+    private void PageOrientation_Click(object sender, RoutedEventArgs e)
+    {
+        var st = _vm.SettingsVm.Settings;
+        st.PageOrientation = (st.PageOrientation == "Landscape") ? "Portrait" : "Landscape";
+        _ = _vm.SaveSettingsAsync(); ConnectEditor();
+    }
     private void InlineAi_Open_Click(object sender, RoutedEventArgs e) => InlineAi_Open(sender, e);
+    private void InlineAi_Open_Click_Sub() { }
     private void InlineAi_Open(object? sender, RoutedEventArgs e)
     {
-        if (sender is not TextBox tb || tb.DataContext is not EditorViewModel editor) return;
+        if (sender is not DocumentViewer dv || dv.DataContext is not EditorViewModel editor) return;
         if (_vm.Project is null) { _vm.StatusText = "Kein Projekt geöffnet."; return; }
         var p = _vm.Project;
-        var selection = tb.SelectionLength > 0 ? tb.SelectedText : string.Empty;
-        // Umgebender Text: ±500 Zeichen um den Cursor
-        var full = editor.Text ?? string.Empty; var caret = Math.Clamp(tb.SelectionStart, 0, full.Length);
-        var from = Math.Max(0, caret - 500); var to = Math.Min(full.Length, caret + 500);
+        var range = EditorSelectionRange(out var hadSelection);
+        var selection = hadSelection && range is not null ? range.Text : string.Empty;
+        // Umgebender Text: +-500 Zeichen um den Cursor (Klartext-Ableitung des FlowDocument)
+        var full = editor.Text ?? string.Empty;
+        int caretPos = range is not null ? PositionInPlainText(editor.Document, range.End) : Math.Min(full.Length, 0);
+        var from = Math.Max(0, caretPos - 500); var to = Math.Min(full.Length, caretPos + 500);
         var scene = full.Substring(from, to - from);
-        var chars = string.Join("\n", p.Characters.Select(c => "- " + c.Name + ": " + c.Description));
-        var world = string.Join("\n", p.WorldEntries.Select(w => "- " + w.Title + ": " + w.Description));
+        var chars = string.Join(Environment.NewLine, p.Characters.Select(c => "- " + c.Name + ": " + c.Description));
+        var world = string.Join(Environment.NewLine, p.WorldEntries.Select(w => "- " + w.Title + ": " + w.Description));
         var board = _vm.Project.Whiteboards.SelectMany(w => w.Nodes.Select(n => "- [" + Alice.Core.Models.BoardNodeTypes.LabelOf(n.NodeType) + "] " + n.Title + (string.IsNullOrWhiteSpace(n.Text) ? "" : ": " + n.Text))).ToList();
-        var dlg = new InlineAiDialog(_vm.Ai.CurrentProvider, selection, scene, chars, world, string.Join("\n", board), p.Title, _vm.Ai.SelectedDeepAiModel) { Owner = this };
-        if (dlg.ShowDialog() != true) return; // Verwerfen: Manuskript unverändert
+        var dlg = new InlineAiDialog(_vm.Ai.CurrentProvider, selection, scene, chars, world, string.Join(Environment.NewLine, board), p.Title, _vm.Ai.SelectedDeepAiModel) { Owner = this };
+        if (dlg.ShowDialog() != true) return; // Verwerfen: Manuskript unveraendert
         if (string.IsNullOrEmpty(dlg.GeneratedText)) return;
-        // Nur nach ausdrücklicher Bestätigung schreiben - Ersetzen oder Einfügen am Cursor
-        if (dlg.ChosenMode == "Replace" && tb.SelectionLength > 0)
-        {
-            var start = tb.SelectionStart;
-            tb.SelectedText = dlg.GeneratedText;
-            tb.SelectionStart = start + dlg.GeneratedText.Length; tb.SelectionLength = 0;
-        }
-        else
-        {
-            tb.Text = tb.Text.Insert(tb.SelectionStart, dlg.GeneratedText);
-            tb.SelectionStart += dlg.GeneratedText.Length; tb.SelectionLength = 0;
-        }
-        tb.Focus();
-        _vm.StatusText = "KI-Text übernommen (Anweisung nicht im Manuskript).";
+        // Nur nach ausdruecklicher Bestaetigung schreiben - Ersetzen oder Einfuegen am Cursor
+        EditorInsertText(dlg.GeneratedText, replaceSelection: dlg.ChosenMode == "Replace");
+        ActiveRichTextBox()?.Focus();
+        _vm.StatusText = "KI-Text uebernommen (Anweisung nicht im Manuskript).";
     }
+
+    /// <summary>Position eines Zeigers im abgeleiteten Klartext (Absaetze mit Zeilenumbruch verbunden).</summary>
+    private static int PositionInPlainText(System.Windows.Documents.FlowDocument doc, TextPointer pointer)
+    {
+        int offset = 0;
+        foreach (var block in doc.Blocks)
+        {
+            var r = new TextRange(block.ContentStart, block.ContentEnd);
+            if (pointer.CompareTo(r.End) <= 0)
+                return offset + Math.Max(0, pointer.GetOffsetToPosition(r.Start));
+            offset += r.Text.Length + 2; // Zeilenumbruch zwischen Absaetzen
+        }
+        return offset;
+    }
+
     private void InlineAi_Marker_Click(object? sender, RoutedEventArgs e)
     {
-        if (sender is not TextBox tb) { var tb2 = FindByName(this, "EditorTextBox") as TextBox; if (tb2 is null) return; tb = tb2; }
         var marker = Alice.Core.Models.InlineAiMarkers.Create("Anweisung hier eingeben");
-        tb.Text = tb.Text.Insert(tb.SelectionStart, marker);
-        tb.SelectionStart += marker.Length - 24; tb.Focus();
-        _vm.StatusText = "{{AI}}-Marker eingefügt – Anweisung editieren, dann „KI-Marker ausführen“.";
+        EditorInsertText(marker, replaceSelection: false);
+        _vm.StatusText = "{{AI}}-Marker eingefuegt - Anweisung editieren, dann \"KI-Marker ausfuehren\".";
     }
     private void InlineAi_RunMarker_Click(object? sender, RoutedEventArgs e)
     {
-        var tb = FindByName(this, "EditorTextBox") as TextBox; if (tb is null || _vm.Project is null) return;
-        var markers = Alice.Core.Models.InlineAiMarkers.Extract(tb.Text);
-        if (markers.Count == 0) { _vm.StatusText = "Kein abgeschlossener {{AI:…}}-Marker gefunden (unabgeschlossene bleiben unangetastet)."; return; }
+        if (_vm.Project is null) return;
+        var editor = _vm.Editor;
+        var markers = Alice.Core.Models.InlineAiMarkers.Extract(editor.Text ?? string.Empty);
+        if (markers.Count == 0) { _vm.StatusText = "Kein abgeschlossener {{AI:...}}-Marker gefunden (unabgeschlossene bleiben unangetastet)."; return; }
         var first = markers[0];
-        tb.SelectionStart = first.Index; tb.SelectionLength = 0;
-        // Marker-Instruction in den Inline-KI-Dialog vorbefüllen und nur nach Bestätigung ersetzen
+        // Marker-Instruction in den Inline-KI-Dialog vorbefuellen und nur nach Bestaetigung ersetzen
         var p = _vm.Project;
-        var dlg = new InlineAiDialog(_vm.Ai.CurrentProvider, string.Empty, tb.Text, string.Join("\n", p.Characters.Select(c => "- " + c.Name + ": " + c.Description)), string.Join("\n", p.WorldEntries.Select(w => "- " + w.Title + ": " + w.Description)), string.Empty, p.Title, _vm.Ai.SelectedDeepAiModel) { Owner = this };
+        var dlg = new InlineAiDialog(_vm.Ai.CurrentProvider, string.Empty, editor.Text, string.Join(Environment.NewLine, p.Characters.Select(c => "- " + c.Name + ": " + c.Description)), string.Join(Environment.NewLine, p.WorldEntries.Select(w => "- " + w.Title + ": " + w.Description)), string.Empty, p.Title, _vm.Ai.SelectedDeepAiModel) { Owner = this };
         dlg.PromptText.Text = first.Instruction;
         if (dlg.ShowDialog() != true) return;
         if (string.IsNullOrEmpty(dlg.GeneratedText)) return;
-        var fresh = Alice.Core.Models.InlineAiMarkers.Extract(tb.Text);
+        var fresh = Alice.Core.Models.InlineAiMarkers.Extract(editor.Text ?? string.Empty);
         if (fresh.Count == 0) return;
         var m = fresh[0];
-        tb.Text = tb.Text.Remove(m.Index, m.Length).Insert(m.Index, dlg.GeneratedText);
-        tb.SelectionStart = m.Index + dlg.GeneratedText.Length; tb.Focus();
-        _vm.StatusText = "KI-Marker ausgeführt und durch Text ersetzt.";
+        // Marker liegt innerhalb EINES Absatzes? Dann formatierungserhaltend ersetzen.
+        int acc = 0; System.Windows.Documents.Paragraph? markerPara = null; int localStart = 0;
+        foreach (var block in editor.Document.Blocks)
+        {
+            var r = new TextRange(block.ContentStart, block.ContentEnd);
+            var t = r.Text;
+            if (acc + t.Length >= m.Index && acc + t.Length <= m.Index + m.Length)
+            {
+                markerPara = block as Paragraph; localStart = m.Index - acc;
+                break;
+            }
+            acc += t.Length + 2;
+        }
+        if (markerPara is not null)
+        {
+            var pr = new TextRange(markerPara.ContentStart, markerPara.ContentEnd);
+            var t = pr.Text;
+            if (localStart + m.Length <= t.Length)
+            {
+                var startPtr = pr.Start.GetPositionAtOffset(localStart);
+                var endPtr = pr.Start.GetPositionAtOffset(localStart + m.Length);
+                var markerRange = new TextRange(startPtr, endPtr);
+                markerRange.Text = dlg.GeneratedText;
+                _vm.StatusText = "KI-Marker ausgefuehrt und durch Text ersetzt.";
+                return;
+            }
+        }
+        // Marker spannd ueber Absaetze: Kompromiss - Klartext-Neuaufbau (Formatierung entfällt hier)
+        var newPlain = (editor.Text ?? string.Empty).Remove(m.Index, m.Length).Insert(m.Index, dlg.GeneratedText);
+        editor.LoadPlainTextIntoDocument(newPlain);
+        _vm.StatusText = "KI-Marker ausgefuehrt und durch Text ersetzt.";
     }
 
     // ---------- Panel-Text: Doppelklick = bearbeiten, sonst Panel-Koerper (Drag) ----------

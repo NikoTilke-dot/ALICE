@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Windows.Documents;
+using System.Windows.Controls;
 using Alice.Core.Enums;
 using Alice.Core.Models;
 using Alice.Core.Services;
@@ -18,8 +20,17 @@ public partial class EditorViewModel : ObservableObject
     private string _content = string.Empty;
     private readonly Stack<string> _undo = new();
     private readonly Stack<string> _redo = new();
+    private bool _documentSyncing;
+    private System.Windows.Threading.DispatcherTimer? _syncTimer;
+    private System.Windows.Documents.FlowDocument _document = new();
 
     public ManuscriptNode? Node => _node;
+    /// <summary>Das eine Autorenobjekt (seitenbasiertes FlowDocument). Der Klartext unten ist nur abgeleitet (Zähler/Export/AI/Suche).</summary>
+    public System.Windows.Documents.FlowDocument Document
+    {
+        get => _document;
+        private set { _document = value; OnPropertyChanged(); }
+    }
     [ObservableProperty] private string _text = string.Empty;
     [ObservableProperty] private string _nodeTitle = string.Empty;
     [ObservableProperty] private string _synopsis = string.Empty;
@@ -43,7 +54,16 @@ public partial class EditorViewModel : ObservableObject
         _project = project; _node = node;
         if (node is not null)
         {
-            Text = node.Content ?? string.Empty; _content = Text;
+            // Dokument laden: XAML-Entwurf (Formatierung) oder Klartext-Fallback.
+            _documentSyncing = true;
+            try
+            {
+                var doc = FlowDocumentTools.FromRichXaml(node.ContentRich, node.Content ?? string.Empty);
+                Document = doc;
+                HookDocument(doc);
+                Text = FlowDocumentTools.ToPlainText(doc); _content = Text;
+            }
+            finally { _documentSyncing = false; }
             NodeTitle = node.Title; Synopsis = node.Synopsis ?? string.Empty;
             StatusLabel = node.Status.ToString();
             _snapshots = new ObservableCollection<Snapshot>(node.Snapshots.OrderByDescending(s => s.CreatedAt));
@@ -52,12 +72,43 @@ public partial class EditorViewModel : ObservableObject
         else { Text = string.Empty; NodeTitle = "—"; StatusLabel = "—"; Synopsis = string.Empty; UpdateCounts(); }
     }
 
+    /// <summary>An das FlowDocument haengen: nur Font-Grundwerte schreiben (TextChanged kommt ueber die RichTextBox des Viewers).</summary>
+    public void HookDocument(FlowDocument doc)
+    {
+        if (_documentSyncing) return;
+        if (!string.IsNullOrWhiteSpace(EditorFont))
+        {
+            try { doc.FontFamily = new System.Windows.Media.FontFamily(EditorFont); } catch { }
+            if (double.TryParse(EditorFontSize, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var fs) && fs > 0)
+                doc.FontSize = fs;
+        }
+    }
+
+    /// <summary>Der Viewer meldet Textaenderungen aus der fokussierten RichTextBox. Debounced (250 ms) aus dem FlowDocument ziehen.</summary>
+    public void NotifyDocumentDirty()
+    {
+        if (_documentSyncing || _node is null) return;
+        if (_syncTimer is null)
+        {
+            _syncTimer = new System.Windows.Threading.DispatcherTimer { Interval = System.TimeSpan.FromMilliseconds(250) };
+            _syncTimer.Tick += (_, __) =>
+            {
+                _syncTimer!.Stop();
+                var plain = FlowDocumentTools.ToPlainText(Document);
+                if (plain != Text) Text = plain;
+            };
+        }
+        _syncTimer.Stop(); _syncTimer.Start();
+    }
+
     partial void OnTextChanged(string value)
     {
-        if (_node is not null && _node.Content != value)
+        if (_node is not null && !_documentSyncing)
         {
-            // Debounce-ähnlich: bei jeder Änderung speichern + zählen
+            // Debounce-ähnlich: bei jeder Änderung speichern + zählen.
+            // Content (Klartext) = Source of Truth; ContentRich = XAML-Entwurf (Formatierung).
             _node.Content = value; _node.UpdatedAt = DateTime.UtcNow;
+            _node.ContentRich = FlowDocumentTools.ToXaml(Document);
             if (_project is not null && value.Length - _content.Length > 0) _undo.Push(_content);
             _content = value; _redo.Clear();
             UpdateCounts();
@@ -74,8 +125,10 @@ public partial class EditorViewModel : ObservableObject
         ReadingMinutes = WordCounter.ReadingMinutes(Text);
     }
 
-    public void Undo() { if (_undo.Count > 0 && _node is not null) { _redo.Push(Text); Text = _undo.Pop(); _node.Content = Text; UpdateCounts(); } }
-    public void Redo() { if (_redo.Count > 0 && _node is not null) { _undo.Push(Text); Text = _redo.Pop(); _node.Content = Text; UpdateCounts(); } }
+    // Hinweis: Undo/Redo der Formatierung übernimmt der RichTextBox-Editor selbst (Ctrl+Z/Ctrl+Y).
+    /// <summary>Externe Undo-Anfrage (z. B. Menü): an den Editor weitergeben (Rückmeldung über StatusLabel).</summary>
+    public void UndoRequest() { StatusLabel = "Rückgängig: Ctrl+Z im Editor (RichText)"; }
+    public void RedoRequest() { StatusLabel = "Wiederherstellen: Ctrl+Y im Editor (RichText)"; }
     public void OpenReplace() { FindResult = "Ersetzen-Felder im Editor unten: Suche + Ersetze + 'Ersetzen'."; }
 
     [RelayCommand]
@@ -90,8 +143,27 @@ public partial class EditorViewModel : ObservableObject
     private void DoReplace()
     {
         if (string.IsNullOrWhiteSpace(FindText)) return;
-        Text = Text.Replace(FindText, ReplaceText ?? string.Empty, StringComparison.Ordinal);
-        FindResult = "Ersetzt.";
+        // Absatzbasiert im FlowDocument ersetzen (Formatierung um die Treffer bleibt).
+        var replaced = FlowDocumentTools.ReplaceAll(Document, FindText, ReplaceText ?? string.Empty, caseSensitive: true);
+        var plain = FlowDocumentTools.ToPlainText(Document);
+        Text = plain; _node?.UpdatedAt = DateTime.UtcNow;
+        if (_node is not null) { _node.Content = plain; _node.ContentRich = FlowDocumentTools.ToXaml(Document); }
+        FindResult = replaced > 0 ? $"{replaced}× ersetzt." : "Kein Treffer.";
+        UpdateCounts();
+    }
+
+    /// <summary>Snapshot wiederherstellen: Dokument aus Klartext neu aufbauen (Formatierung entfällt bei Snapshots).</summary>
+    internal void LoadPlainTextIntoDocument(string plain, bool setRich = false)
+    {
+        _documentSyncing = true;
+        try
+        {
+            var doc = setRich ? FlowDocumentTools.FromPlainText(plain) : FlowDocumentTools.FromPlainText(plain);
+            Document = doc; HookDocument(doc);
+            Text = FlowDocumentTools.ToPlainText(doc);
+            if (_node is not null) { _node.Content = Text; _node.ContentRich = FlowDocumentTools.ToXaml(doc); }
+        }
+        finally { _documentSyncing = false; }
         UpdateCounts();
     }
 
@@ -109,7 +181,7 @@ public partial class EditorViewModel : ObservableObject
         if (s is null || _node is null) return;
         if (System.Windows.MessageBox.Show($"Snapshot „{s.Name}“ wiederherstellen? Aktueller Text bleibt als Snapshot erhalten.", "Wiederherstellen", System.Windows.MessageBoxButton.YesNo) != System.Windows.MessageBoxResult.Yes) return;
         CreateSnapshot(); // aktuellen Stand sichern
-        Text = s.Content; _node.Content = Text; UpdateCounts();
+        LoadPlainTextIntoDocument(s.Content);
     }
 }
 

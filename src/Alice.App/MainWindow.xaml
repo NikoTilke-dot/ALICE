@@ -10,37 +10,47 @@
     <Window.Resources>
         <!-- Editor: ruhig, lesbar, fokussiert -->
         <DataTemplate DataType="{x:Type vm:EditorViewModel}">
-            <ScrollViewer Background="{StaticResource PaperBrush}" VerticalScrollBarVisibility="Auto">
-            <Grid Margin="0">
-                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                <StackPanel Grid.Row="0" MaxWidth="760" Margin="40,18,40,0" HorizontalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
+            <Grid Margin="0" Background="#535353">
+                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                <StackPanel Grid.Row="0" MaxWidth="760" Margin="24,14,24,6" HorizontalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,4">
                         <Border Width="120" Height="1" Background="{StaticResource BorderBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
                         <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE8F1;" FontSize="16" Foreground="{StaticResource FgMuted}"/>
                         <Border Width="120" Height="1" Background="{StaticResource BorderBrush}" VerticalAlignment="Center" Margin="10,0,0,0"/>
                     </StackPanel>
                     <TextBlock Text="Kapitel" FontFamily="{StaticResource EditorFont}" FontSize="14" HorizontalAlignment="Center" Foreground="{StaticResource FgMuted}"/>
-                    <TextBox Text="{Binding NodeTitle, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource EditorFont}" FontSize="34" FontWeight="Bold" HorizontalAlignment="Center" TextAlignment="Center" BorderThickness="0" Background="Transparent" Padding="0,6" MinWidth="200"/>
+                    <TextBox Text="{Binding NodeTitle, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource EditorFont}" FontSize="34" FontWeight="Bold" HorizontalAlignment="Center" TextAlignment="Center" BorderThickness="0" Background="Transparent" Padding="0,6" MinWidth="200" Foreground="#FFFFFF"/>
                     <Border Background="{StaticResource AccentSoft}" CornerRadius="999" Padding="10,3" HorizontalAlignment="Center" Margin="0,4,0,0"><TextBlock Text="{Binding StatusLabel, Mode=OneWay}" Foreground="{StaticResource AccentStrong}" FontSize="12" FontWeight="SemiBold"/></Border>
-                    <TextBlock Text="Synopsis" Style="{StaticResource FieldLabel}" Margin="0,12,0,3"/>
+                    <TextBlock Text="Synopsis" Style="{StaticResource FieldLabel}" Margin="0,10,0,3"/>
                     <TextBox Text="{Binding Synopsis, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="48" MaxHeight="64" FontSize="13" Foreground="{StaticResource FgMuted}" Background="Transparent" BorderBrush="{StaticResource BorderBrush}"/>
                 </StackPanel>
-                <StackPanel Grid.Row="1" MaxWidth="760" Margin="40,6,40,0" HorizontalAlignment="Center">
-                    <Border Style="{StaticResource EditorCard}" Padding="0" Background="Transparent" BorderThickness="0">
-                        <TextBox x:Name="EditorTextBox" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MinHeight="320" BorderThickness="0" Background="Transparent" FontFamily="{Binding EditorFont, Mode=OneWay}" FontSize="{Binding EditorFontSize, Mode=OneWay}" Padding="18,8" KeyDown="InlineAi_KeyDown">
-                            <TextBox.ContextMenu><ContextMenu>
-                                <MenuItem Header="KI hier schreiben (Ctrl+K)" Click="InlineAi_Open_Click"/>
-                                <MenuItem Header="Auswahl mit KI umschreiben" Click="InlineAi_Open_Click"/>
-                                <MenuItem Header="AI-Marker einfügen" Click="InlineAi_Marker_Click"/>
-                                <MenuItem Header="KI-Marker ausführen" Click="InlineAi_RunMarker_Click"/>
-                            </ContextMenu></TextBox.ContextMenu>
-                        </TextBox>
-                    </Border>
-                    <TextBlock FontSize="12" Foreground="{StaticResource FgMuted}" HorizontalAlignment="Center" Margin="0,8,0,0">
-                        <Run Text="Wörter: "/><Run Text="{Binding WordCount, Mode=OneWay}"/><Run Text="  ·  Zeichen: "/><Run Text="{Binding CharCount, Mode=OneWay}"/><Run Text="  ·  Lesezeit: "/><Run Text="{Binding ReadingMinutes, Mode=OneWay}"/><Run Text=" Min"/>
+                <!-- WORD-ANSICHT: graue Arbeitsflaeche, weisse Seiten, Schatten, echte Paginierung -->
+                <FlowDocumentPageViewer Grid.Row="1" x:Name="EditorDocViewer" Document="{Binding Document}" Background="#535353" Margin="8,2,8,4" Focusable="True" KeyDown="InlineAi_KeyDown">
+                    <FlowDocumentPageViewer.Style><Style TargetType="FlowDocumentPageViewer"><Setter Property="Background" Value="#535353"/></Style></FlowDocumentPageViewer.Style>
+                    <FlowDocumentPageViewer.ContextMenu><ContextMenu>
+                        <MenuItem Header="KI hier schreiben (Ctrl+K)" Click="InlineAi_Open_Click"/>
+                        <MenuItem Header="Auswahl mit KI umschreiben" Click="InlineAi_Open_Click"/>
+                        <MenuItem Header="AI-Marker einfügen" Click="InlineAi_Marker_Click"/>
+                        <MenuItem Header="KI-Marker ausführen" Click="InlineAi_RunMarker_Click"/>
+                    </ContextMenu></FlowDocumentPageViewer.ContextMenu>
+                </FlowDocumentPageViewer>
+                <Grid Grid.Row="2" Margin="24,2,24,0" Background="#1A1A1E">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4">
+                        <Button Content="|◀ Erste" Click="PageFirst_Click" Margin="0,0,6,0"/>
+                        <Button Content="◀ Vorherige" Click="PagePrev_Click" Margin="0,0,8,0"/>
+                        <TextBlock x:Name="PageInfoText" Text="Seite 1 von 1" VerticalAlignment="Center" FontSize="13" Foreground="#FFFFFF" Margin="0,0,8,0"/>
+                        <Button Content="Nächste ▶" Click="PageNext_Click" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0"/>
+                        <Button Content="Letzte ▶|" Click="PageLast_Click" Margin="0,0,10,0"/>
+                        <TextBlock Text="Sprung:" VerticalAlignment="Center" Foreground="{StaticResource FgMuted}" Margin="0,0,4,0"/>
+                        <TextBox x:Name="JumpText" Width="44" VerticalAlignment="Center" KeyDown="JumpPage_KeyDown"/>
+                    </StackPanel>
+                </Grid>
+                <Grid Grid.Row="3" Margin="24,4,24,0" Background="#1A1A1E">
+                    <TextBlock FontSize="12" Foreground="{StaticResource FgMuted}" HorizontalAlignment="Center" Margin="0,0,0,4">
+                        <Run Text="Wörter: "/><Run Text="{Binding WordCount, Mode=OneWay}"/><Run Text="  ·  Zeichen: "/><Run Text="{Binding CharCount, Mode=OneWay}"/><Run Text="  ·  Sätze: "/><Run Text="{Binding SentenceCount, Mode=OneWay}"/><Run Text="  ·  Lesezeit: "/><Run Text="{Binding ReadingMinutes, Mode=OneWay}"/><Run Text=" Min"/>
                     </TextBlock>
-                </StackPanel>
-                <Border Grid.Row="2" Margin="40,12,40,0" MaxWidth="760" HorizontalAlignment="Center" Style="{StaticResource EditorCard}" Padding="10">
+                </Grid>
+                <Border Grid.Row="4" Margin="24,4,24,12" Background="#1A1A1E" Style="{StaticResource EditorCard}" Padding="10">
                     <DockPanel>
                         <StackPanel Orientation="Horizontal" DockPanel.Dock="Top">
                             <TextBlock Text="Suchen" Style="{StaticResource SectionTitle}" VerticalAlignment="Center" Margin="0,0,6,0"/>
@@ -57,16 +67,7 @@
                         <TextBlock Text="{Binding FindResult}" Foreground="{StaticResource FgMuted}" FontSize="12" Margin="0,6,0,0"/>
                     </DockPanel>
                 </Border>
-                <Grid Grid.Row="3" Margin="40,8,40,14" MaxWidth="760" HorizontalAlignment="Center">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Snapshots" Style="{StaticResource SectionTitle}" VerticalAlignment="Top" Margin="0,4,10,0"/>
-                    <ListBox Grid.Column="1" ItemsSource="{Binding Snapshots}" MaxHeight="52" ScrollViewer.HorizontalScrollBarVisibility="Auto">
-                        <ListBox.ItemTemplate><DataTemplate><Border Background="{StaticResource BgPanel2}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="999" Padding="10,4" Margin="0,0,6,0"><StackPanel Orientation="Horizontal"><TextBlock Text="{Binding Name}" FontSize="12"/><TextBlock Text=" - " Foreground="{StaticResource FgMuted}"/><TextBlock Text="{Binding CreatedAt}" FontSize="11" Foreground="{StaticResource FgMuted}"/><Button Content="Wiederherstellen" Command="{Binding DataContext.RestoreSnapshotCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}" Style="{StaticResource GhostButton}" Padding="6,2" Margin="6,0,0,0"/></StackPanel></Border></DataTemplate></ListBox.ItemTemplate>
-                        <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ListBox.ItemsPanel>
-                    </ListBox>
-                </Grid>
             </Grid>
-            </ScrollViewer>
         </DataTemplate>
         <!-- Outliner: Tabellen-artig, scannbar -->
         <DataTemplate DataType="{x:Type vm:OutlinerViewModel}">
@@ -328,7 +329,7 @@
                 </DockPanel>
             </Border>
             <Border Grid.Column="1" Background="Transparent" Visibility="{Binding ShowNavigator, Converter={StaticResource BoolToVisibilityConverter}}"/>
-            <Border Grid.Column="2" Background="{StaticResource PaperBrush}"><DockPanel><Border DockPanel.Dock="Top" Background="{StaticResource BgPanel}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="10,6" Visibility="{Binding ShowEditorBar, Converter={StaticResource BoolToVisibilityConverter}}"><StackPanel><StackPanel Orientation="Horizontal" Margin="0,6,0,0"><ComboBox IsEditable="False" SelectedValuePath="Content" SelectedValue="{Binding Editor.EditorFont, Mode=TwoWay}" MinWidth="150" Margin="0,0,6,0"><ComboBoxItem Content="Calibri"/><ComboBoxItem Content="Cambria"/><ComboBoxItem Content="Georgia"/><ComboBoxItem Content="Garamond"/><ComboBoxItem Content="Times New Roman"/><ComboBoxItem Content="Arial"/><ComboBoxItem Content="Verdana"/><ComboBoxItem Content="Tahoma"/><ComboBoxItem Content="Palatino Linotype"/><ComboBoxItem Content="Courier New"/><ComboBoxItem Content="Consolas"/><ComboBoxItem Content="Cascadia Code"/><ComboBoxItem Content="Segoe UI"/><ComboBoxItem Content="Segoe UI Variable"/></ComboBox><ComboBox IsEditable="False" SelectedValuePath="Content" SelectedValue="{Binding Editor.EditorFontSize, Mode=TwoWay}" MinWidth="64" Margin="0,0,6,0"><ComboBoxItem Content="8"/><ComboBoxItem Content="9"/><ComboBoxItem Content="10"/><ComboBoxItem Content="11"/><ComboBoxItem Content="12"/><ComboBoxItem Content="14"/><ComboBoxItem Content="16"/><ComboBoxItem Content="18"/><ComboBoxItem Content="20"/><ComboBoxItem Content="22"/><ComboBoxItem Content="24"/><ComboBoxItem Content="28"/><ComboBoxItem Content="36"/><ComboBoxItem Content="48"/></ComboBox><Button Content="Rückgängig" Command="{Binding UndoCommand}"/><Button Content="Wiederholen" Command="{Binding RedoCommand}" Margin="6,0,0,0"/><Button Content="Snapshot" Command="{Binding NewSnapshotCommand}" Margin="6,0,0,0"/></StackPanel></StackPanel></Border><ContentControl Content="{Binding CurrentWorkspace}"/></DockPanel></Border>
+            <Border Grid.Column="2" Background="{StaticResource PaperBrush}"><DockPanel><Border DockPanel.Dock="Top" Background="{StaticResource BgPanel}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="10,6" Visibility="{Binding ShowEditorBar, Converter={StaticResource BoolToVisibilityConverter}}"><StackPanel><StackPanel Orientation="Horizontal" Margin="0,6,0,0"><ComboBox x:Name="FmtFontCombo" IsEditable="False" SelectedValuePath="Content" SelectedValue="{Binding Editor.EditorFont, Mode=TwoWay}" MinWidth="150" Margin="0,0,6,0" SelectionChanged="FmtFont_Changed"><ComboBoxItem Content="Calibri"/><ComboBoxItem Content="Cambria"/><ComboBoxItem Content="Georgia"/><ComboBoxItem Content="Garamond"/><ComboBoxItem Content="Times New Roman"/><ComboBoxItem Content="Arial"/><ComboBoxItem Content="Verdana"/><ComboBoxItem Content="Tahoma"/><ComboBoxItem Content="Palatino Linotype"/><ComboBoxItem Content="Courier New"/><ComboBoxItem Content="Consolas"/><ComboBoxItem Content="Cascadia Code"/><ComboBoxItem Content="Segoe UI"/><ComboBoxItem Content="Segoe UI Variable"/></ComboBox><ComboBox x:Name="FmtSizeCombo" IsEditable="False" SelectedValuePath="Content" SelectedValue="{Binding Editor.EditorFontSize, Mode=TwoWay}" MinWidth="64" Margin="0,0,6,0" SelectionChanged="FmtSize_Changed"><ComboBoxItem Content="8"/><ComboBoxItem Content="9"/><ComboBoxItem Content="10"/><ComboBoxItem Content="11"/><ComboBoxItem Content="12"/><ComboBoxItem Content="14"/><ComboBoxItem Content="16"/><ComboBoxItem Content="18"/><ComboBoxItem Content="20"/><ComboBoxItem Content="22"/><ComboBoxItem Content="24"/><ComboBoxItem Content="28"/><ComboBoxItem Content="36"/><ComboBoxItem Content="48"/></ComboBox><Button Content="B" Click="FmtBold_Click" ToolTip="Fett (Ctrl+B)" Margin="6,0,0,0" FontWeight="Bold"/><Button Content="I" Click="FmtItalic_Click" ToolTip="Kursiv (Ctrl+I)" FontStyle="Italic" Margin="4,0,0,0" FontWeight="Bold"/><Button Content="U" Click="FmtUnderline_Click" ToolTip="Unterstrichen (Ctrl+U)" Margin="4,0,0,0"><Button.Template><ControlTemplate TargetType="Button"><Border Background="Transparent"><Grid><TextBlock Text="U" FontSize="13" VerticalAlignment="Center" HorizontalAlignment="Center"/><Line X1="6" X2="22" Y1="15" Y2="15" Stroke="{TemplateBinding Foreground}" StrokeThickness="1.5"/></Grid></Border></ControlTemplate></Button.Template></Button><Button Content="Links" Click="FmtAlignLeft_Click" ToolTip="Links ausrichten" Margin="6,0,0,0"/><Button Content="Mitte" Click="FmtAlignCenter_Click" ToolTip="Zentriert ausrichten" Margin="4,0,0,0"/><Button Content="Rechts" Click="FmtAlignRight_Click" ToolTip="Rechts ausrichten" Margin="4,0,0,0"/><Button Content="Block" Click="FmtAlignJustify_Click" ToolTip="Blocksatz" Margin="4,0,0,0"/><Button Content="• Liste" Click="FmtBullets_Click" ToolTip="Aufzählungsliste" Margin="8,0,0,0"/><Button Content="1. Liste" Click="FmtNumbering_Click" ToolTip="Nummerierte Liste" Margin="4,0,0,0"/><Button Content="H1" Click="FmtHeading1_Click" ToolTip="Überschrift 1" Margin="8,0,0,0"/><Button Content="H2" Click="FmtHeading2_Click" ToolTip="Überschrift 2" Margin="4,0,0,0"/><Button Content="Absatz" Click="FmtNormal_Click" ToolTip="Normaler Absatz" Margin="4,0,0,0"/><Button Content="Rückgängig" Command="{Binding UndoCommand}" ToolTip="Ctrl+Z" Margin="8,0,0,0"/><Button Content="Wiederholen" Command="{Binding RedoCommand}" Margin="4,0,0,0"/><Button Content="Snapshot" Command="{Binding NewSnapshotCommand}" Margin="4,0,0,0"/><TextBlock Text="Seite:" VerticalAlignment="Center" Margin="10,0,4,0" Foreground="{StaticResource FgMuted}"/><ComboBox x:Name="PageSizeCombo" MinWidth="84" SelectionChanged="PageSize_Changed" Margin="0,0,6,0"><ComboBoxItem Content="A4"/><ComboBoxItem Content="Letter"/></ComboBox><Button Content="Quer" Click="PageOrientation_Click" ToolTip="Quer-/Hochformat" Margin="0,0,6,0"/><Button Content="−" Click="ZoomOut_Click" Width="30" Margin="0,0,4,0"/><TextBlock x:Name="ZoomLabel" Text="100%" VerticalAlignment="Center" Margin="0,0,4,0"/><Button Content="+" Click="ZoomIn_Click" Width="30" Margin="0,0,6,0"/></StackPanel></StackPanel></Border><ContentControl Content="{Binding CurrentWorkspace}"/></DockPanel></Border>
             <Border Grid.Column="3" Background="Transparent" Visibility="{Binding ShowInspector, Converter={StaticResource BoolToVisibilityConverter}}"/>
             <Border Grid.Column="4" Background="{StaticResource BgPanel}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0" Visibility="{Binding ShowInspector, Converter={StaticResource BoolToVisibilityConverter}}"><DockPanel><ContentControl DockPanel.Dock="Top" Height="380" Content="{Binding Inspector}"/><Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Visibility="{Binding ShowAi, Converter={StaticResource BoolToVisibilityConverter}}"><ContentControl Content="{Binding Ai}"/></Border></DockPanel></Border>
         </Grid>

@@ -15,6 +15,12 @@ public sealed class AliceSettings
     public double EditorMaxWidth { get; set; } = 720;
     public bool ShowNavigator { get; set; } = true;
     public bool ShowInspector { get; set; } = true;
+    // Seitenlayout des Manuskript-Editors (Word-Ansichten)
+    public double PageZoom { get; set; } = 1.0;
+    public double PageMarginMm { get; set; } = 20.0;
+    public string PageSize { get; set; } = "A4"; // A4 | Letter
+    public string PageOrientation { get; set; } = "Portrait"; // Portrait | Landscape
+    public bool ShowPageBorder { get; set; } = true;
     public bool ShowAiPanel { get; set; } = true;
     public double NavigatorWidth { get; set; } = 260;
     public double InspectorWidth { get; set; } = 300;
