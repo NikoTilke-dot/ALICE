@@ -44,3 +44,9 @@
 
 - `dotnet test -c Release`: **20/20 bestanden** (WordCounter, Templates, Repository, Backup, Search/Stats, Import/Export, AI/Provider/Companion)
 - `dotnet build -c Release`: **0 Fehler, 0 Warnungen (außer MVVMT-Notices)**
+
+| Manuskript-Editor | Word-Design (weißes A4-Blatt auf hellgrauem Arbeitsplatz, schwarze Schrift), Kapitel-Titelseiten mit "Kapitel N", Schreibseiten im Fluss, Format-Leiste, Seiten-Navigation, Zoom, Ränder/Größe (A4/Letter), Autosave | ✅ Implementiert (Phasen 1–3) |
+| Rechtschreibung Deutsch | Lokale de-DE-Prüfung (igerman98-Wortliste, 151 824 Formen), rote Unterstreichung, Vorschläge per Rechtsklick, Auto-Korrektur sicherer Regeln, persönliches + Projekt-Wörterbuch, Undo-integriert | ✅ Implementiert (Phase 4) |
+| Export | PDF/DOCX/EPUB/TXT/RTF/MD/ODT/HTML/ZIP, Presets (Word-Manuskript, Druck-Vorschau, E-Book, Klartext, Markdown, OpenDocument, Voll-Sicherung), Titelblatt/Autor/Copyright, Kopf-/Fußzeile, Seitenzahlen, Kapitel-Umbrüche, A4/Letter, Schriftfamilie/-größe | ✅ Implementiert (Phase 5) |
+| Persistenz | Autosave (Intervall), Undo-Stack (Text), Snapshots, Backup-Rotation | ✅ Vorhanden (Phase 6) |
+| Tests | 51/51 (WordCounter, Templates, Repository, Backup, Search/Stats, Import/Export, AI/Provider, Kapitel-Struktur, Inline-AI-Marker, Rechtschreibung) | ✅ |
