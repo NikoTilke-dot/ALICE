@@ -89,9 +89,13 @@ public partial class MainWindow : Window
 
     private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        try { var tb = Keyboard.FocusedElement as System.Windows.Controls.TextBox; var info = tb != null ? "ro=" + tb.IsReadOnly + " sel=" + tb.SelectedText.Length + " caret=" + tb.CaretIndex + " len=" + tb.Text.Length + " dc=" + (tb.DataContext?.GetType().Name ?? "?") : ""; var chain = new System.Collections.Generic.List<string>(); var c = Keyboard.FocusedElement as DependencyObject; while (c is not null && chain.Count < 10) { var fe = c as FrameworkElement; if (fe?.DataContext is not null) chain.Add(fe.GetType().Name + "(dc=" + fe.DataContext.GetType().Name + ")"); else chain.Add(fe?.GetType().Name + ""); c = System.Windows.Media.VisualTreeHelper.GetParent(c); } System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "alice-keys.log"), "[" + DateTime.Now.ToString("HH:mm:ss") + "] key=" + e.Key + " handled=" + e.Handled + " " + info + " chain=" + string.Join("<-", chain) + Environment.NewLine); } catch { }
         if (e.Key == Key.Space) _spaceDown = true;
         if (!IsBoardActive()) return;
-        var focusedElement = Keyboard.Focus; if (focusedElement is System.Windows.Controls.TextBox) return; // Textbearbeitung nicht abfangen
+        // WICHTIG: Keyboard.FocusedElement (mit Property). 'Keyboard.Focus' ohne
+        // Argumente ist eine METHODENGRUPPE und nie ein TextBox -> der Guard war
+        // wirkungslos und hat Backspace/Delete immer abgefangen (Text-Loeschen tot).
+        var focusedElement = Keyboard.FocusedElement; if (focusedElement is System.Windows.Controls.TextBox) return; // Textbearbeitung nicht abfangen
         var bvm = (StoryboardViewModel)_vm.CurrentWorkspace!;
         // KEIN Delete/Backspace auf dem Board: Loeschen nur per Rechtsklick -> Loeschen.
         if (e.Key == Key.Back) { e.Handled = true; return; }

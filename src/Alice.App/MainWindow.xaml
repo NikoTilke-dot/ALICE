@@ -146,8 +146,8 @@
                         <Button Content="Kompakt" Command="{Binding CompactViewCommand}" Margin="0,0,6,0"/>
                         <Button Content="Storyboard als PNG" Click="BoardExportPng_Click" Margin="0,0,6,0" ToolTip="Canvas als Bild exportieren"/>
                         <Border Width="1" Background="{StaticResource BorderBrush}" Margin="4,0"/>
-                        <TextBox Text="{Binding FilterType, UpdateSourceTrigger=PropertyChanged}" Width="130" Margin="0,0,6,0" ToolTip="Filter nach Typ (z. B. Charakter, Idee, Alle Typen)"/>
-                        <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,6,0" ToolTip="Nodes durchsuchen"/>
+                        <TextBox Text="{Binding FilterType, UpdateSourceTrigger=LostFocus}" Width="130" Margin="0,0,6,0" ToolTip="Filter nach Typ (z. B. Charakter, Idee, Alle Typen)"/>
+                        <TextBox Text="{Binding SearchText, UpdateSourceTrigger=LostFocus}" Width="140" Margin="0,0,6,0" ToolTip="Nodes durchsuchen"/>
                         <Button Content="Suchen" Command="{Binding RunSearchCommand}" Margin="0,0,6,0"/>
                         <Button Content="Filter zurücksetzen" Command="{Binding ClearFilterCommand}" Margin="0,0,6,0"/>
                     </WrapPanel>
@@ -156,7 +156,7 @@
                 <Border DockPanel.Dock="Bottom" Background="{StaticResource BgPanel}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="8">
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                            <TextBox Text="{Binding KiScope, UpdateSourceTrigger=PropertyChanged}" Width="160" Margin="0,0,6,0" ToolTip="KI-Kontext: Ausgewählte Nodes / Gesamtes Whiteboard / Ausgewählte Gruppe"/>
+                            <TextBox Text="{Binding KiScope, UpdateSourceTrigger=LostFocus}" Width="160" Margin="0,0,6,0" ToolTip="KI-Kontext: Ausgewählte Nodes / Gesamtes Whiteboard / Ausgewählte Gruppe"/>
                             <Button Content="KI-Kontext kopieren" Command="{Binding CopyKiContextCommand}" Margin="0,0,6,0"/>
                             <Button Content="Nodes aus Zwischenablage (KI-Vorschlag)" Command="{Binding NodesFromClipboardCommand}" Margin="0,0,6,0"/>
                             <TextBlock Text="{Binding ZoomLabel, Mode=OneWay}" VerticalAlignment="Center" Foreground="{StaticResource FgMuted}" FontSize="12" Margin="8,0,0,0"/>
@@ -167,19 +167,19 @@
                 <Border DockPanel.Dock="Right" Width="250" Background="{StaticResource BgPanel}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0" Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibilityConverter}}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Margin="10">
                         <TextBlock Text="Node-Eigenschaften" Style="{StaticResource SectionTitle}"/>
-                        <TextBlock Text="Titel" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding SelectedNode.Title, UpdateSourceTrigger=PropertyChanged}"/>
-                        <TextBlock Text="Text" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding SelectedNode.Text, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" MinHeight="70" TextWrapping="Wrap"/>
+                        <TextBlock Text="Titel" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding SelectedNode.Title, UpdateSourceTrigger=LostFocus}"/>
+                        <TextBlock Text="Text" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding SelectedNode.Text, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" MinHeight="70" TextWrapping="Wrap"/>
                         <TextBlock Text="Typ" Style="{StaticResource FieldLabel}"/><ComboBox ItemsSource="{Binding NodeTypeCatalog}" DisplayMemberPath="Label" SelectedValuePath="Type" SelectedValue="{Binding SelectedNode.NodeType, Mode=TwoWay}"/>
-                        <TextBlock Text="Kategorie" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding SelectedNode.Category, UpdateSourceTrigger=PropertyChanged}"/>
-                        <TextBlock Text="Status" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding SelectedNode.Status, UpdateSourceTrigger=PropertyChanged}"/>
-                        <TextBlock Text="Tags" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding SelectedNode.Tags, UpdateSourceTrigger=PropertyChanged}"/>
-                        <TextBlock Text="Symbol (Glyph, optional)" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding SelectedNode.Symbol, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Text="Kategorie" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding SelectedNode.Category, UpdateSourceTrigger=LostFocus}"/>
+                        <TextBlock Text="Status" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding SelectedNode.Status, UpdateSourceTrigger=LostFocus}"/>
+                        <TextBlock Text="Tags" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding SelectedNode.Tags, UpdateSourceTrigger=LostFocus}"/>
+                        <TextBlock Text="Symbol (Glyph, optional)" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding SelectedNode.Symbol, UpdateSourceTrigger=LostFocus}"/>
                         <CheckBox Content="Eingeklappt" IsChecked="{Binding SelectedNode.IsCollapsed}" Margin="0,8,0,0"/>
                         <TextBlock Text="Kartenfarbe" Style="{StaticResource FieldLabel}"/><ItemsControl ItemsSource="{Binding ColorPalette}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Button Width="24" Height="24" Margin="0,0,4,4" Background="{Binding}" BorderBrush="{StaticResource BorderBrush}" Command="{Binding DataContext.ApplyNodeColorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
                         <TextBlock Text="Akzentfarbe" Style="{StaticResource FieldLabel}"/><ItemsControl ItemsSource="{Binding AccentPalette}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Button Width="24" Height="24" Margin="0,0,4,4" Background="{Binding}" BorderBrush="{StaticResource BorderBrush}" Command="{Binding DataContext.ApplyNodeAccentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
                         <TextBlock Text="Eigener Panel-Typ" Style="{StaticResource SectionTitle}" Margin="0,12,0,0"/>
-                        <TextBlock Text="Name" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding CustomTypeName, UpdateSourceTrigger=PropertyChanged}"/>
-                        <TextBlock Text="Symbol (optional, MDL2-Glyph)" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding CustomTypeSymbol, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Text="Name" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding CustomTypeName, UpdateSourceTrigger=LostFocus}"/>
+                        <TextBlock Text="Symbol (optional, MDL2-Glyph)" Style="{StaticResource FieldLabel}"/><TextBox Text="{Binding CustomTypeSymbol, UpdateSourceTrigger=LostFocus}"/>
                         <ItemsControl ItemsSource="{Binding AccentPalette}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Button Width="22" Height="22" Margin="0,4,4,0" Background="{Binding}" Command="{Binding DataContext.SetCustomTypeColorCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
                         <Button Content="Typ speichern" Command="{Binding AddCustomTypeCommand}" Margin="0,4,0,0"/>
                         <TextBlock Text="Gespeicherte eigene Typen" Style="{StaticResource FieldLabel}"/><ItemsControl ItemsSource="{Binding CustomTypes}"><ItemsControl.ItemTemplate><DataTemplate><Button Content="{Binding Name}" HorizontalAlignment="Left" Margin="0,2,0,0" Command="{Binding DataContext.AddConnectedCustomSelectedCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" ToolTip="Verbundenes Panel aus diesem Typ erstellen"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
@@ -261,7 +261,7 @@
                                 <DockPanel DockPanel.Dock="Top" Margin="8,4,8,0">
                                     <TextBlock FontFamily="{StaticResource IconFont}" Text="{Binding Glyph}" Foreground="{Binding Accent, Converter={StaticResource ColorToBrushConverter}}" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center"/>
                                     <TextBlock Text="{Binding TypeLabel}" Foreground="{StaticResource FgMuted}" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                    <TextBox Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" FontWeight="SemiBold" FontSize="13" Background="Transparent" BorderThickness="0" Padding="0" VerticalAlignment="Center" Margin="0,0,4,0" IsReadOnly="True" ToolTip="Doppelklick: Titel bearbeiten · Ziehen: Panel bewegen" MouseDoubleClick="NodeText_DoubleClick" LostFocus="NodeText_LostFocus"/>
+                                    <TextBox Text="{Binding Title, UpdateSourceTrigger=LostFocus}" FontWeight="SemiBold" FontSize="13" Background="Transparent" BorderThickness="0" Padding="0" VerticalAlignment="Center" Margin="0,0,4,0" IsReadOnly="True" ToolTip="Doppelklick: Titel bearbeiten · Ziehen: Panel bewegen" MouseDoubleClick="NodeText_DoubleClick" LostFocus="NodeText_LostFocus"/>
                                 </DockPanel>
                                 <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="8,0,8,4">
                                     <TextBox Text="{Binding Status, UpdateSourceTrigger=PropertyChanged}" FontSize="10" Foreground="{StaticResource FgMuted}" Background="Transparent" BorderThickness="0" Width="70" Padding="0" ToolTip="Status"/>
@@ -269,7 +269,7 @@
                                     <Ellipse x:Name="ConnectPort" Width="13" Height="13" Fill="{StaticResource AccentSoft}" Stroke="{StaticResource AccentStrong}" StrokeThickness="1.5" HorizontalAlignment="Right" Cursor="Cross" ToolTip="Ziehen: Verbindung zu anderem Node" PreviewMouseLeftButtonDown="BoardPort_PreviewMouseDown"/>
                                     <Border x:Name="ResizeHandle" Width="14" Height="14" Background="Transparent" HorizontalAlignment="Right" Cursor="SizeNWSE" ToolTip="Größe ändern" PreviewMouseLeftButtonDown="BoardResize_PreviewMouseDown"><TextBlock Text="◢" Foreground="{StaticResource FgMuted}" FontSize="10"/></Border>
                                 </StackPanel>
-                                <TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Background="Transparent" BorderThickness="0" FontSize="12" Margin="8,2,8,4" IsReadOnly="True" ToolTip="Doppelklick: Text bearbeiten · Ziehen: Panel bewegen" MouseDoubleClick="NodeText_DoubleClick" LostFocus="NodeText_LostFocus" Visibility="{Binding IsCollapsed, Converter={StaticResource InverseBoolConverter}}"/>
+                                <TextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Background="Transparent" BorderThickness="0" FontSize="12" Margin="8,2,8,4" IsReadOnly="True" ToolTip="Doppelklick: Text bearbeiten · Ziehen: Panel bewegen" MouseDoubleClick="NodeText_DoubleClick" LostFocus="NodeText_LostFocus" Visibility="{Binding IsCollapsed, Converter={StaticResource InverseBoolConverter}}"/>
                             </DockPanel>
                         </Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
                         <Canvas x:Name="BoardOverlay" Panel.ZIndex="3"/>
