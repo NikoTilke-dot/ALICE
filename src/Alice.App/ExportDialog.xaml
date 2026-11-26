@@ -9,6 +9,17 @@
             <Button Content="Abbrechen" Click="Cancel_Click" Margin="8,0,0,0" MinWidth="90"/>
         </StackPanel>
         <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
+            <TextBlock Text="Vorlage (Preset)" Style="{StaticResource SectionTitle}"/>
+            <ComboBox x:Name="PresetBox" IsEditable="False" MinWidth="260" Margin="0,4,8,0" SelectionChanged="Preset_Changed">
+                <ComboBoxItem Content="— bitte wählen, oder unten manuell einstellen —"/>
+                <ComboBoxItem Content="Word-Manuskript (DOCX, Serif, 12 pt, Kapitel je Seite)"/>
+                <ComboBoxItem Content="Druck-Vorschau (PDF, A4, Serif, 12 pt, Seitenzahlen)"/>
+                <ComboBoxItem Content="E-Book (EPUB)"/>
+                <ComboBoxItem Content="Klartext (TXT)"/>
+                <ComboBoxItem Content="Markdown (.md)"/>
+                <ComboBoxItem Content="OpenDocument (ODT)"/>
+                <ComboBoxItem Content="Volle Projekt-Sicherung (ZIP, nativ)"/>
+            </ComboBox>
             <TextBlock Text="Format" Style="{StaticResource SectionTitle}"/>
             <ComboBox x:Name="FormatBox" IsEditable="False" MinWidth="260" Margin="0,4,0,8">
                 <ComboBoxItem Content="PDF" Tag="Pdf"/><ComboBoxItem Content="DOCX (Word)" Tag="Docx"/>
@@ -30,8 +41,17 @@
             <CheckBox x:Name="ChapterPageBox" Content="Kapitel auf neuer Seite"/>
             <TextBlock Text="Seitenformat" Style="{StaticResource FieldLabel}"/>
             <ComboBox x:Name="PageFormatBox" IsEditable="False" MinWidth="140"><ComboBoxItem Content="A4" Tag="A4"/><ComboBoxItem Content="Letter" Tag="Letter"/></ComboBox>
+            <TextBlock Text="Schrift (PDF)" Style="{StaticResource FieldLabel}"/>
+            <ComboBox x:Name="FontFamilyBox" IsEditable="False" MinWidth="140"><ComboBoxItem Content="Sans (Helvetica)" Tag="Sans"/><ComboBoxItem Content="Serif (Times)" Tag="Serif"/><ComboBoxItem Content="Mono (Courier)" Tag="Mono"/></ComboBox>
             <TextBlock Text="Schriftgröße (PDF, pt)" Style="{StaticResource FieldLabel}"/>
             <ComboBox x:Name="FontSizeBox" IsEditable="False" MinWidth="140"><ComboBoxItem Content="10" Tag="10"/><ComboBoxItem Content="11" Tag="11"/><ComboBoxItem Content="12" Tag="12"/></ComboBox>
+            <TextBlock Text="Titelblatt/Autor/Copyright" Style="{StaticResource SectionTitle}"/>
+            <TextBlock Text="Autor (Titelblatt + Metadaten)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="AuthorBox" Margin="0,2,0,4"/>
+            <TextBlock Text="Copyright (Titelblatt)" Style="{StaticResource FieldLabel}"/><TextBox x:Name="CopyrightBox" Margin="0,2,0,4" ToolTip="z. B. © 2026 Name"/>
+            <TextBlock Text="Kopf-/Fußzeile (PDF)" Style="{StaticResource SectionTitle}"/>
+            <TextBlock Text="Kopfzeile" Style="{StaticResource FieldLabel}"/><TextBox x:Name="HeaderBox" Margin="0,2,0,4"/>
+            <TextBlock Text="Fußzeile" Style="{StaticResource FieldLabel}"/><TextBox x:Name="FooterBox" Margin="0,2,0,4"/>
+            <CheckBox x:Name="NotesBox" Content="Autoren-Notizen (Synopsen, Notizen) im Anhang einbeziehen" Margin="0,8,0,0"/>
             <TextBlock Text="Hinweis: PDF/DOCX/EPUB enthalten Kapitelstruktur, TXT/MD/HTML den Fließtext inkl. Storyboard-Anhang. Datei-Ertrag wird erst nach erfolgreichem Schreiben gemeldet." FontSize="11" Foreground="{StaticResource FgMuted}" TextWrapping="Wrap" Margin="0,10,0,0"/>
         </StackPanel></ScrollViewer>
     </DockPanel>

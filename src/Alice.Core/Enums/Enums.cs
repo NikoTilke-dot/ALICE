@@ -41,6 +41,14 @@ public sealed class ExportOptions
     public bool ChapterNewPage { get; set; }
     public int FontSize { get; set; } = 11;
     public string PageFormat { get; set; } = "A4"; // A4 | Letter
+    public string FontFamily { get; set; } = "Sans"; // Sans | Serif | Mono (PDF: Helvetica/Times-Roman/Courier)
+    public double MarginMm { get; set; } = 20.0;
+    public string Author { get; set; } = string.Empty;
+    public string Copyright { get; set; } = string.Empty; // z. B. "© 2026 Name"
+    public string HeaderText { get; set; } = string.Empty; // Kopfzeile (PDF)
+    public string FooterText { get; set; } = string.Empty;
+    public bool IncludeNotes { get; set; }
+    public bool IncludeImages { get; set; }
 }
 
 /// <summary>Importformat.</summary>

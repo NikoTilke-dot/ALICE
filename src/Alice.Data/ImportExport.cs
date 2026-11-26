@@ -214,8 +214,11 @@ public sealed class ImportExportService : IImportExportService
         options ??= new ExportOptions();
         var text = BuildFullText(p, options);
         var isLetter = options.PageFormat == "Letter";
-        var (pageW, pageH, topY) = isLetter ? (612, 792, 740) : (595, 842, 800);
-        var perPage = 45;
+        var (pageW, pageH) = isLetter ? (612, 792) : (595, 842);
+        var marginPt = Math.Clamp(options.MarginMm * 72.0 / 25.4, 36, 100);
+        var topY = pageH - marginPt;
+        var perPage = Math.Max(15, (int)((topY - marginPt) / 14));
+        var fontName = options.FontFamily switch { "Serif" => "Times-Roman", "Mono" => "Courier", _ => "Helvetica" };
         var chapterTitles = p.Nodes.Where(n => n.Kind == NodeKind.Chapter).Select(n => n.Title).ToHashSet();
         var rawLines = Wrap(text, 85).Take(4000).ToList();
         // Layout: KapitelneueSeite + Titelblatt + TOC einbauen
@@ -223,7 +226,8 @@ public sealed class ImportExportService : IImportExportService
         if (options.TitlePage)
         {
             lines.AddRange(Enumerable.Repeat("", 18));
-            lines.Add(p.Title); lines.Add(p.Author); lines.Add(DateTime.Now.ToString("dd.MM.yyyy"));
+            lines.Add(p.Title); lines.Add(string.IsNullOrWhiteSpace(options.Author) ? p.Author : options.Author); lines.Add(DateTime.Now.ToString("dd.MM.yyyy"));
+            if (!string.IsNullOrWhiteSpace(options.Copyright)) lines.Add(options.Copyright);
             lines.AddRange(Enumerable.Repeat("", Math.Max(1, perPage - (18 + 3))));
         }
         if (options.IncludeToc)
@@ -249,9 +253,15 @@ public sealed class ImportExportService : IImportExportService
         {
             pageNo++;
             var chunk = lines.Skip(i).Take(perPage).ToList();
-            var content = $"BT /F1 {options.FontSize} Tf 50 {topY} Td ";
+            var content = $"BT /F1 {options.FontSize} Tf {marginPt} {topY} Td ";
             content += string.Join(" ", chunk.Select(l => $"({EscapePdf(l)}) Tj 0 -14 Td "));
-            if (options.PageNumbers) content += $" 1 0 0 1 280 20 Tm ({pageNo}) Tj";
+            if (options.PageNumbers || !string.IsNullOrWhiteSpace(options.FooterText))
+            {
+                var footer = string.IsNullOrWhiteSpace(options.FooterText) ? pageNo.ToString() : (options.FooterText + "  -  " + pageNo);
+                content += $" 1 0 0 1 {marginPt} {marginPt - 18} Tm 8 Tf ({EscapePdf(footer)}) Tj";
+            }
+            if (!string.IsNullOrWhiteSpace(options.HeaderText))
+                content += $" 1 0 0 1 {marginPt} {pageH - marginPt + 14} Tm 8 Tf ({EscapePdf(options.HeaderText)}) Tj";
             content += " ET";
             var pageId = objNum++; var contentId = objNum++;
             pages.Add(pageId);
@@ -260,7 +270,7 @@ public sealed class ImportExportService : IImportExportService
         }
         foreach (var o in pageObjs) sb.Append(o + "\n");
         var fontId = objNum++;
-        sb.Append($"{fontId} 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj\n");
+        sb.Append($"{fontId} 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /{fontName} >>endobj\n");
         var final = sb.ToString().Replace("/Kids []", $"/Kids [{string.Join(" ", pages.Select(x => $"{x} 0 R"))}] /Count {pages.Count}").Replace("/F1 9 0 R", $"/F1 {fontId} 0 R");
         await File.WriteAllTextAsync(path, final, Encoding.ASCII, ct);
     }
