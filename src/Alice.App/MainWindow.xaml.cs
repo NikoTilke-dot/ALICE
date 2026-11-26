@@ -7,6 +7,7 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using Alice.App.ViewModels;
+using Alice.Core.Proofreading;
 
 namespace Alice.App;
 
@@ -23,6 +24,8 @@ public partial class MainWindow : Window
     private System.Windows.Threading.DispatcherTimer? _pageLabelTimer;
     private int _pendingPageNext = -1;
     private bool _fitZoomApplied;
+    private readonly GermanSpelling _spell = new GermanSpelling();
+    private System.Windows.Threading.DispatcherTimer? _spellTimer;
     private System.Windows.Shapes.Rectangle? _marqueeRect;
     private Point _marqueeStart; private bool _marquee = false;
     // Storyboard-Drag-Zustand
@@ -397,6 +400,101 @@ public partial class MainWindow : Window
         return null;
     }
 
+    // ---------- Rechtschreibung (lokal, de-DE) ----------
+    private void RebuildSpellEngine()
+    {
+        var st = _vm.SettingsVm.Settings;
+        _spell.Enabled = st.SpellCheck;
+        _spell.GrammarRules = st.SpellGrammarRules;
+        _spell.SetPersonalWords(st.PersonalWords ?? new List<string>());
+        var words = new List<string>();
+        var proj = _vm.Project;
+        if (proj is not null)
+        {
+            words.AddRange(proj.Characters.Select(c => c.Name));
+            words.AddRange(proj.WorldEntries.Select(w => w.Title));
+        }
+        _spell.SetProjectWords(words);
+    }
+
+    private void RefreshSpellDecorations()
+    {
+        var doc = _vm.Editor.Document;
+        if (doc is null) return;
+        RebuildSpellEngine();
+        if (!_spell.Enabled) return;
+        var st = _vm.SettingsVm.Settings;
+        var rtb = ActiveRichTextBox();
+        Paragraph? caretPara = null;
+        try { if (rtb is not null) caretPara = rtb.Selection.Start.Paragraph; } catch { }
+        if (st.SpellAutocorrect)
+        {
+            bool any = false;
+            foreach (var p in doc.Blocks.OfType<Paragraph>())
+            {
+                if (FlowDocumentTools.IsChapterHeaderBlock(p) || ReferenceEquals(p, caretPara)) continue;
+                var t = new TextRange(p.ContentStart, p.ContentEnd).Text;
+                var fixedText = _spell.AutoCorrect(t);
+                if (fixedText != t) { any = true; new TextRange(p.ContentStart, p.ContentEnd).Text = fixedText; }
+            }
+            if (any) { _vm.Editor.MarkUndoPoint(); _vm.Editor.NotifyDocumentDirty(); }
+        }
+        FlowDocumentTools.ApplySpellDecorations(doc, _spell, caretPara);
+    }
+
+    private void EditorDoc_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        var cm = sender as ContextMenu; if (cm is null) return;
+        for (int i = cm.Items.Count - 1; i >= 0; i--)
+            if (cm.Items[i] is MenuItem mi && mi.Tag is string tg && tg.StartsWith("spell")) cm.Items.RemoveAt(i);
+        var rtb = ActiveRichTextBox();
+        string word = string.Empty; TextRange? wordRange = null;
+        try
+        {
+            if (rtb is not null)
+            {
+                var pos = Mouse.GetPosition(rtb);
+                var pointer = rtb.GetPositionFromPoint(pos, true);
+                if (pointer is not null)
+                {
+                    var para = pointer.Paragraph;
+                    var paraText = new TextRange(para.ContentStart, para.ContentEnd).Text;
+                    int offset = new TextRange(para.ContentStart, pointer).Text.Length;
+                    var m = GermanSpelling.TokenRegex.Matches(paraText).FirstOrDefault(x => offset >= x.Index && offset <= x.Index + x.Length);
+                    if (m is not null)
+                    {
+                        word = m.Value;
+                        var sP = para.ContentStart.GetPositionAtOffset(m.Index);
+                        var eP = para.ContentStart.GetPositionAtOffset(m.Index + m.Length);
+                        wordRange = new TextRange(sP, eP);
+                    }
+                }
+            }
+        }
+        catch { }
+        if (string.IsNullOrWhiteSpace(word) || !_spell.Enabled) return;
+        if (!_spell.IsKnownWord(word))
+        {
+            var insertAt = 0;
+            foreach (var sug in _spell.Suggest(word, 5))
+            {
+                var item = new MenuItem { Header = "→ " + sug, Tag = "spell-accept" };
+                item.Click += (_, _) => { if (wordRange is not null) { wordRange.Text = sug; rtb?.Focus(); } };
+                cm.Items.Insert(insertAt++, item);
+            }
+            var sep = new Separator { Tag = "spell-sep" }; cm.Items.Insert(insertAt++, sep);
+        }
+        var add = new MenuItem { Header = "\u201E" + word + "\u201C zum Wörterbuch hinzufügen", Tag = "spell-add" };
+        add.Click += (_, _) =>
+        {
+            var st = _vm.SettingsVm.Settings;
+            if (!st.PersonalWords.Contains(word)) { st.PersonalWords.Add(word); _ = _vm.SaveSettingsAsync(); }
+            _spell.AddPersonalWord(word);
+            RefreshSpellDecorations();
+        };
+        cm.Items.Insert(0, add);
+    }
+
     /// <summary>Aktive RichTextBox des DocumentViewers (fuer Formatierung/Inline-KI). Fokus liegt im Editor auf diesem Element.</summary>
     private RichTextBox? ActiveRichTextBox()
     {
@@ -499,8 +597,39 @@ public partial class MainWindow : Window
         v.Zoom = System.Math.Clamp(st.PageZoom * 100, 80, 200);
         // Editor-Sync: TextChanged aller materialisierten RichTextBoxen an das Debounce haengen
         HookAllRichTextBoxes(v);
+        if (_vm.Editor.RequestFocusBody)
+        {
+            _vm.Editor.RequestFocusBody = false;
+            EditorFocusBodyStart();
+        }
         RefreshPageLabel();
         _pageLabelTimer?.Start();
+        _ = _spellTimer ??= new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
+        _spellTimer.Tick += (_, _) => RefreshSpellDecorations();
+        RebuildSpellEngine();
+        RefreshSpellDecorations();
+    }
+
+    /// <summary>Cursor auf den Anfang der ersten Schreibseite setzen (nach "+ Kapitel"/"+ Szene"): Folgeseite nach der Kapitel-Titelseite.</summary>
+    private void EditorFocusBodyStart()
+    {
+        var rtb = ActiveRichTextBox();
+        var doc = _vm.Editor.Document;
+        if (rtb is null || doc is null) return;
+        try
+        {
+            foreach (var block in doc.Blocks)
+            {
+                if (block is System.Windows.Documents.Paragraph p && !FlowDocumentTools.IsChapterHeaderBlock(block))
+                {
+                    var start = p.ContentStart;
+                    rtb.Focus();
+                    rtb.Selection.Select(start, start);
+                    return;
+                }
+            }
+        }
+        catch { /* Fokus-Einspruenge darf den Editor nie abbrechen */ }
     }
 
     private void RefreshPageLabel()

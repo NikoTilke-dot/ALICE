@@ -433,10 +433,24 @@ public partial class MainViewModel : ObservableObject
         if (kind == NodeKind.Chapter && parent is not null) node.ParentId = null; // Kapitel = Root
         Project.Nodes.Add(node);
         RefreshNavigator();
+        SelectedNavigatorItem = FindNavigatorNode(NavigatorItems, node.Id) ?? SelectedNavigatorItem;
+        _editor.RequestFocusBody = true; // Cursor bereit auf der ersten Schreibseite
         StatusText = "Knoten hinzugefügt: " + node.Title;
     }
 
     [RelayCommand] private void AddChapter() => AddNode(NodeKind.Chapter);
+    /// <summary>Navigator-Knoten zu einer ManuskriptNode-ID finden (für Auswahl nach "+ Kapitel"/"+ Szene").</summary>
+    private static NavigatorNode? FindNavigatorNode(IEnumerable<NavigatorNode> items, Guid id)
+    {
+        foreach (var it in items)
+        {
+            if (it.Node.Id == id) return it;
+            var hit = FindNavigatorNode(it.Children, id);
+            if (hit is not null) return hit;
+        }
+        return null;
+    }
+
     [RelayCommand] private void AddScene() => AddNode(NodeKind.Scene);
 
     [RelayCommand]

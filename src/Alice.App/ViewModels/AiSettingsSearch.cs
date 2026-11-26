@@ -149,6 +149,12 @@ public partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<DeepAiModel> DeepAiModels => DeepAiCatalog.Models;
     public string SelectedDeepAiModel { get => _settings.Current.DeepAiModel; set { _settings.Current.DeepAiModel = value; OnPropertyChanged(); } }
     [ObservableProperty] private string _status = "Einstellungen werden gespeichert.";
+    // --- Rechtschreibung (lokal, de-DE) ---
+    public bool SpellCheck { get => _settings.Current.SpellCheck; set { _settings.Current.SpellCheck = value; OnPropertyChanged(); OnPropertyChanged(nameof(Settings)); } }
+    public bool SpellAutocorrect { get => _settings.Current.SpellAutocorrect; set { _settings.Current.SpellAutocorrect = value; OnPropertyChanged(); OnPropertyChanged(nameof(Settings)); } }
+    public bool SpellGrammarRules { get => _settings.Current.SpellGrammarRules; set { _settings.Current.SpellGrammarRules = value; OnPropertyChanged(); OnPropertyChanged(nameof(Settings)); } }
+    public string PersonalWordsText { get => string.Join(", ", _settings.Current.PersonalWords); set { _settings.Current.PersonalWords = string.IsNullOrWhiteSpace(value) ? [] : value.Split(',').Select(x => x.Trim()).Where(x => x.Length > 0).ToList(); OnPropertyChanged(); OnPropertyChanged(nameof(Settings)); } }
+
     public SettingsViewModel(ISettingsStore settings, IDeepAiCompanionService deepAi) { _settings = settings; _deepAi = deepAi; }
 
     [RelayCommand]

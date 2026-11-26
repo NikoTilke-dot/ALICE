@@ -24,7 +24,10 @@ public sealed class AliceSettings
     public bool ShowAiPanel { get; set; } = true;
     public double NavigatorWidth { get; set; } = 260;
     public double InspectorWidth { get; set; } = 300;
-    public bool SpellCheck { get; set; } = false;
+    public bool SpellCheck { get; set; } = true; // Meister-Schalter lokale de-DE-Pruefung
+    public bool SpellAutocorrect { get; set; }        // Auto-Korrektur (nur sichere Regeln)
+    public bool SpellGrammarRules { get; set; } = true; // Tipp-/Interpunktions-Regeln
+    public List<string> PersonalWords { get; set; } = []; // Benutzerwoerterbuch (Fiktion u. a.)
     public bool TypewriterMode { get; set; } = false;
     public bool FocusMode { get; set; } = false;
     public bool Autosave { get; set; } = true;

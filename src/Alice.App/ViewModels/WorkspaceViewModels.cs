@@ -58,7 +58,8 @@ public partial class EditorViewModel : ObservableObject
             _documentSyncing = true;
             try
             {
-                var doc = FlowDocumentTools.FromRichXaml(node.ContentRich, node.Content ?? string.Empty);
+                // Kapitel-Struktur (Buch): Titelseite (generiert) + Seitenumbruch + Schreibseiten (Inhalt).
+                var doc = FlowDocumentTools.CompileChapterDocument(node);
                 Document = doc;
                 HookDocument(doc);
                 Text = FlowDocumentTools.ToPlainText(doc); _content = Text;
@@ -74,6 +75,9 @@ public partial class EditorViewModel : ObservableObject
 
     /// <summary>Layout-Hook: gesetzt vom MainViewModel (weisses Papier, schwarze Schrift, A4-Groesse/Padding). Wird bei JEDER neuen FlowDocument-Erzeugung aufgerufen - so bleibt das Layout auch nach Refresh()/Snapshot-Restore stabil.</summary>
     public Action<FlowDocument>? LayoutDocument;
+
+    /// <summary>Wird von "+ Kapitel"/"+ Szene" gesetzt: der Cursor soll auf der ersten Schreibseite landen.</summary>
+    public bool RequestFocusBody { get; set; }
 
     /// <summary>An das FlowDocument haengen: nur Font-Grundwerte schreiben (TextChanged kommt ueber die RichTextBox des Viewers).</summary>
     public void HookDocument(FlowDocument doc)
@@ -100,6 +104,12 @@ public partial class EditorViewModel : ObservableObject
                 _syncTimer!.Stop();
                 var plain = FlowDocumentTools.ToPlainText(Document);
                 if (plain != Text) Text = plain;
+                // Kapitel-Titelzeile bearbeitet? -> node.Title uebernehmen (Rename-Sync zur Titelseite).
+                if (_node is not null)
+                {
+                    var t = FlowDocumentTools.ExtractEditedChapterTitle(Document, _node.Title);
+                    if (t is not null && t != _node.Title) { _node.Title = t; _node.UpdatedAt = DateTime.UtcNow; NodeTitle = t; }
+                }
             };
         }
         _syncTimer.Stop(); _syncTimer.Start();
@@ -129,9 +139,31 @@ public partial class EditorViewModel : ObservableObject
         ReadingMinutes = WordCounter.ReadingMinutes(Text);
     }
 
-    // Hinweis: Undo/Redo der Formatierung übernimmt der RichTextBox-Editor selbst (Ctrl+Z/Ctrl+Y).
-    /// <summary>Externe Undo-Anfrage (z. B. Menü): an den Editor weitergeben (Rückmeldung über StatusLabel).</summary>
-    public void UndoRequest() { StatusLabel = "Rückgängig: Ctrl+Z im Editor (RichText)"; }
+    /// <summary>Undo-Punkt setzen (z. B. vor Auto-Korrekturen): aktueller Fließtext auf den ALICE-Undo-Stack.
+    /// Damit sind Auto-Korrekturen über das ALICE-Rückgängig (Menü) rückgängig zu machen.</summary>
+    public void MarkUndoPoint()
+    {
+        try
+        {
+            var plain = FlowDocumentTools.ToPlainText(Document);
+            if (plain != _content) { _undo.Push(_content); _content = plain; _redo.Clear(); }
+        }
+        catch { }
+    }
+
+    /// <summary>Externe Undo-Anfrage (z. B. Menü): ALICE-Stack zurückrollen (Text + Dokument neu aufbauen),
+    /// sonst Meldung, dass die Formatierungspfade über den RichTextBox-Editor rückgängig laufen (Ctrl+Z/Ctrl+Y).</summary>
+    public void UndoRequest()
+    {
+        if (_undo.Count > 0)
+        {
+            var t = _undo.Pop();
+            _redo.Push(_content);
+            LoadPlainTextIntoDocument(t);
+            StatusLabel = "Letzte Korrektur/Änderung rückgängig.";
+        }
+        else StatusLabel = "Rückgängig: Ctrl+Z im Editor (RichText)";
+    }
     public void RedoRequest() { StatusLabel = "Wiederherstellen: Ctrl+Y im Editor (RichText)"; }
     public void OpenReplace() { FindResult = "Ersetzen-Felder im Editor unten: Suche + Ersetze + 'Ersetzen'."; }
 
@@ -156,13 +188,13 @@ public partial class EditorViewModel : ObservableObject
         UpdateCounts();
     }
 
-    /// <summary>Snapshot wiederherstellen: Dokument aus Klartext neu aufbauen (Formatierung entfällt bei Snapshots).</summary>
+    /// <summary>Snapshot wiederherstellen: Kapitel-Dokument mit dem Klartext als Schreibseiten neu aufbauen (Formatierung entfällt bei Snapshots, Titelseite bleibt).</summary>
     internal void LoadPlainTextIntoDocument(string plain, bool setRich = false)
     {
         _documentSyncing = true;
         try
         {
-            var doc = setRich ? FlowDocumentTools.FromPlainText(plain) : FlowDocumentTools.FromPlainText(plain);
+            var doc = _node is not null ? FlowDocumentTools.CompileChapterDocumentWithBody(_node, FlowDocumentTools.FromPlainText(plain)) : FlowDocumentTools.FromPlainText(plain);
             Document = doc; HookDocument(doc);
             Text = FlowDocumentTools.ToPlainText(doc);
             if (_node is not null) { _node.Content = Text; _node.ContentRich = FlowDocumentTools.ToXaml(doc); }
@@ -204,6 +236,24 @@ public partial class InspectorViewModel : ObservableObject
     [ObservableProperty] private string _pov = string.Empty;
     [ObservableProperty] private string _location = string.Empty;
     [ObservableProperty] private string _notes = string.Empty;
+    // Rueckschreiben: Titel/Synopsis im Inspektor bearbeiten -> direkt am Knoten (Explorer/ Kapitel-Heading synchronisieren sich ueber Refresh).
+    partial void OnTitleChanged(string value)
+    {
+        if (_node is not null && !string.IsNullOrWhiteSpace(value) && value != _node.Title)
+        {
+            _node.Title = value;
+            _node.UpdatedAt = DateTime.UtcNow;
+        }
+    }
+    partial void OnSynopsisChanged(string value)
+    {
+        if (_node is not null && value != (_node.Synopsis ?? string.Empty))
+        {
+            _node.Synopsis = value;
+            _node.UpdatedAt = DateTime.UtcNow;
+        }
+    }
+
     public void Refresh(AliceProject? project, ManuscriptNode? node)
     {
         _project = project; _node = node;

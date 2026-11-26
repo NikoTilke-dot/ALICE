@@ -416,3 +416,98 @@ public sealed class InlineAiMarkerTests
         Assert.Equal("Text", f.Instruction);
     }
 }
+
+public sealed class ChapterStructureTests
+{
+    private static Alice.Core.Models.ManuscriptNode Node(string title, string? content)
+        => new Alice.Core.Models.ManuscriptNode { Title = title, Content = content, Kind = NodeKind.Chapter };
+
+    [Fact]
+    public void Compile_keepsBodyTextOnly()
+    {
+        var node = Node("Kapitel 1", string.Join(Environment.NewLine + Environment.NewLine, new[] { "Der Anfang.", "Es war einmal." }));
+        var doc = Alice.App.ViewModels.FlowDocumentTools.CompileChapterDocument(node);
+        // Manuskript-Text = nur der Body, keine Kapitel-Titelseite.
+        var plain = Alice.App.ViewModels.FlowDocumentTools.ToPlainText(doc).Replace("\r\n", "\n");
+        Assert.Equal("Der Anfang.\n\nEs war einmal.", plain);
+        Assert.False(plain.Contains("Kapitel 1"));
+        Assert.True(Alice.App.ViewModels.FlowDocumentTools.HasChapterHeader(doc));
+    }
+
+    [Fact]
+    public void Compile_emptyBody() {
+        var node = Node("Neues Kapitel", "");
+        var doc = Alice.App.ViewModels.FlowDocumentTools.CompileChapterDocument(node);
+        Assert.Equal(string.Empty, Alice.App.ViewModels.FlowDocumentTools.ToPlainText(doc));
+        // Richtig erkannt: BodyOnly != null, enthält Body-Marker
+        var body = Alice.App.ViewModels.FlowDocumentTools.BodyOnly(doc);
+        Assert.NotNull(body);
+    }
+
+    [Fact]
+    public void ExtractEditedChapterTitle_syncsRename() {
+        var node = Node("Kapitel 2: Der Anfang", "Text");
+        var doc = Alice.App.ViewModels.FlowDocumentTools.CompileChapterDocument(node);
+        // Nutzer editiert die Titelzeile
+        System.Windows.Documents.Paragraph? t = null;
+        foreach (var block in doc.Blocks) {
+            if (block is System.Windows.Documents.Paragraph p && (p.Tag as string) == "ALICE-CH-TITLE") t = p;
+        }
+        Assert.NotNull(t);
+        new System.Windows.Documents.TextRange(t!.ContentStart, t.ContentEnd) { Text = "Der Anfang, neu" };
+        var nt = Alice.App.ViewModels.FlowDocumentTools.ExtractEditedChapterTitle(doc, node.Title);
+        Assert.Equal("Kapitel 2: Der Anfang, neu", nt);
+    }
+
+    [Fact]
+    public void SplitChapterTitle_patterns() {
+        Assert.Equal(("Kapitel 3", "Ankunft"), Alice.App.ViewModels.FlowDocumentTools.SplitChapterTitle("Kapitel 3 - Ankunft"));
+        Assert.Equal(("", "Neues Kapitel"), Alice.App.ViewModels.FlowDocumentTools.SplitChapterTitle("Neues Kapitel"));
+        Assert.Equal(("", "Susanna"), Alice.App.ViewModels.FlowDocumentTools.SplitChapterTitle("Susanna"));
+    }
+}
+
+public sealed class GermanSpellingTests
+{
+    private static Alice.Core.Proofreading.GermanSpelling Engine() => new Alice.Core.Proofreading.GermanSpelling();
+
+    [Fact]
+    public void Known_words_pass() {
+        var e = Engine();
+        Assert.True(e.IsKnownWord("Haus")); Assert.True(e.IsKnownWord("Fenster")); Assert.True(e.IsKnownWord("Bücher")); Assert.True(e.IsKnownWord("weiß"));
+    }
+    [Fact]
+    public void Unknown_typo_is_flagged() {
+        var e = Engine();
+        Assert.False(e.IsKnownWord("Hsuse"));
+        var issues = e.CheckText("Das Hsuse ist grösser als das Haaus.");
+        Assert.Contains(issues, i => i.Word.Equals("Hsuse", StringComparison.OrdinalIgnoreCase) && i.Kind == Alice.Core.Proofreading.ProofKind.Spelling);
+    }
+    [Fact]
+    public void Personal_and_project_words_are_known() {
+        var e = Engine();
+        e.SetPersonalWords(new[] { "Xylophor" }); e.SetProjectWords(new[] { "Moritz", "Arda" });
+        Assert.True(e.IsKnownWord("Xylophor")); Assert.True(e.IsKnownWord("Moritz")); Assert.True(e.IsKnownWord("Arda"));
+    }
+    [Fact]
+    public void Rules_detect_double_word_and_spaces() {
+        var e = Engine();
+        var issues = e.CheckText("Der der  Stern leuchtet.");
+        Assert.Contains(issues, i => i.Kind == Alice.Core.Proofreading.ProofKind.RepeatedWord);
+        Assert.Contains(issues, i => i.Kind == Alice.Core.Proofreading.ProofKind.DoubleSpace);
+    }
+    [Fact]
+    public void Autocorrect_fixes_safe_rules() {
+        var e = Engine();
+        var res = e.AutoCorrect("der der  Stern. der text folgt.");
+        Assert.DoesNotContain("der der", res);
+        Assert.DoesNotContain("  ", res);
+        Assert.Contains("Der", res);
+    }
+    [Fact]
+    public void Suggests_candidates() {
+        var e = Engine();
+        var s = e.Suggest("Hauset");
+        Assert.NotEmpty(s);
+    }
+}
