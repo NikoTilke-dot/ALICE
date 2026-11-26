@@ -60,6 +60,8 @@ public partial class MainWindow : Window
         _vm.PropertyChanged += (_, e) => { if (e.PropertyName is "CurrentWorkspace" or "ModeIndex") _ = Task.Run(async () => { await Task.Delay(280); await Dispatcher.InvokeAsync(ConnectEditor); }); };
         _pageLabelTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
         _pageLabelTimer.Tick += (_, _) => RefreshPageLabel();
+        // Einmalig verbinden, wenn das Fenster geladen ist (CurrentWorkspace feuert sonst nie nach dem Start).
+        Loaded += (_, _) => _ = Task.Run(async () => { await Task.Delay(400); await Dispatcher.InvokeAsync(ConnectEditor); });
     }
 
     // ---------- Helpers ----------
@@ -363,7 +365,37 @@ public partial class MainWindow : Window
     }
 
     // ---------- Editor: Word-artige Seitenansicht (DocumentViewer) ----------
-    private FlowDocumentPageViewer? EditorDoc() => FindByName(this, "EditorDocViewer") as FlowDocumentPageViewer;
+    // DataTemplate-Elemente haben KEIN gesetztes Name (nur lokaler Scope) -> per Typ/Tag suchen.
+    private FlowDocumentPageViewer? EditorDoc()
+    {
+        var tagged = FindByTag<FrameworkElement>(this, "EditorDocViewer") as FlowDocumentPageViewer;
+        if (tagged is not null) return tagged;
+        return FindDescendant<FlowDocumentPageViewer>(this);
+    }
+
+    private static T? FindByTag<T>(DependencyObject root, string tag) where T : class
+    {
+        if (root is FrameworkElement fe && Equals(fe.Tag, tag) && fe is T t) return t;
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var hit = FindByTag<T>(VisualTreeHelper.GetChild(root, i), tag);
+            if (hit is not null) return hit;
+        }
+        return null;
+    }
+
+    private static T? FindElementByTag<T>(DependencyObject root, string tag) where T : DependencyObject
+    {
+        if (root is T t && (root is FrameworkElement fe && Equals(fe.Tag, tag))) return t;
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < count; i++)
+        {
+            var hit = FindElementByTag<T>(VisualTreeHelper.GetChild(root, i), tag);
+            if (hit is not null) return hit;
+        }
+        return null;
+    }
 
     /// <summary>Aktive RichTextBox des DocumentViewers (fuer Formatierung/Inline-KI). Fokus liegt im Editor auf diesem Element.</summary>
     private RichTextBox? ActiveRichTextBox()
@@ -449,19 +481,22 @@ public partial class MainWindow : Window
         doc.Background = System.Windows.Media.Brushes.White;
         v.Foreground = System.Windows.Media.Brushes.Black;
         try { doc.Foreground = System.Windows.Media.Brushes.Black; } catch { }
-        double marginIn = System.Math.Clamp(st.PageMarginMm, 10, 50) / 25.4;
-        doc.PagePadding = new System.Windows.Thickness(marginIn);
-        var (w, h) = (st.PageSize == "Letter") ? (8.5, 11.0) : (8.27, 11.69);
-        if (st.PageOrientation == "Landscape") (w, h) = (h, w);
-        doc.PageWidth = w; doc.PageHeight = h;
+        // WPF misst in DIPs (1/96 Zoll). FRUEHER BUG: Inches gesetzt -> 8.27 DIPs breite Seiten -> 14 Miniseiten.
+        const double Dpi = 96.0;
+        double marginMm = System.Math.Clamp(st.PageMarginMm, 10, 50);
+        doc.PagePadding = new System.Windows.Thickness(marginMm * Dpi / 25.4);
+        var (wMm, hMm) = (st.PageSize == "Letter") ? (215.9, 279.4) : (210.0, 297.0);
+        if (st.PageOrientation == "Landscape") (wMm, hMm) = (hMm, wMm);
+        doc.PageWidth = wMm * Dpi / 25.4;
+        doc.PageHeight = hMm * Dpi / 25.4;
         if (st.PageZoom == 1.0 && !_fitZoomApplied && v.ActualWidth > 200)
         {
-            double pagePx = w * 96.0;
-            st.PageZoom = System.Math.Clamp((v.ActualWidth - 24) / Math.Max(pagePx, 1), 1.0, 2.0);
+            st.PageZoom = System.Math.Clamp((v.ActualWidth - 24) / Math.Max(doc.PageWidth, 1), 1.0, 2.2);
             _fitZoomApplied = true;
             _ = _vm.SaveSettingsAsync();
         }
-        v.Zoom = System.Math.Clamp(st.PageZoom, 0.25, 2.5);
+        // FlowDocumentPageViewer.Zoom ist PROZENT (80..200), nicht Faktor!
+        v.Zoom = System.Math.Clamp(st.PageZoom * 100, 80, 200);
         // Editor-Sync: TextChanged aller materialisierten RichTextBoxen an das Debounce haengen
         HookAllRichTextBoxes(v);
         RefreshPageLabel();
@@ -470,13 +505,13 @@ public partial class MainWindow : Window
 
     private void RefreshPageLabel()
     {
-        var v = EditorDoc(); var info = FindByName(this, "PageInfoText") as System.Windows.Controls.TextBlock;
-        var zoom = FindByName(this, "ZoomLabel") as System.Windows.Controls.TextBlock;
+        var v = EditorDoc(); var info = FindElementByTag<System.Windows.Controls.TextBlock>(this, "PageInfoText");
+        var zoom = FindElementByTag<System.Windows.Controls.TextBlock>(this, "ZoomLabel");
         if (v is null) return;
         HookAllRichTextBoxes(v); // neu materialisierte Seiten einhaengen
         int cur = Math.Max(v.MasterPageNumber, 1); int total = Math.Max(v.PageCount, 1);
         if (info is not null) info.Text = $"Seite {cur} von {total}";
-        if (zoom is not null) zoom.Text = $"{(int)System.Math.Round(v.Zoom * 100)}%";
+        if (zoom is not null) zoom.Text = $"{(int)System.Math.Round(v.Zoom)}%";
         if (_pendingPageNext >= 0 && total >= _pendingPageNext)
         {
             v.GoToPage(_pendingPageNext); _pendingPageNext = -1;
@@ -652,14 +687,14 @@ public partial class MainWindow : Window
     }
 
     // ---------- Editor: Seite ----------
-    private void ZoomIn_Click(object sender, RoutedEventArgs e) => SetZoom(0.1);
-    private void ZoomOut_Click(object sender, RoutedEventArgs e) => SetZoom(-0.1);
-    private void SetZoom(double delta)
+    private void ZoomIn_Click(object sender, RoutedEventArgs e) => SetZoom(10);
+    private void ZoomOut_Click(object sender, RoutedEventArgs e) => SetZoom(-10);
+    private void SetZoom(double deltaPercent)
     {
         var v = EditorDoc(); if (v is null) return;
         var st = _vm.SettingsVm.Settings;
-        v.Zoom = System.Math.Clamp(v.Zoom + delta, 0.25, 2.5);
-        st.PageZoom = v.Zoom;
+        v.Zoom = System.Math.Clamp(v.Zoom + deltaPercent, 80, 200);
+        st.PageZoom = v.Zoom / 100;
         _ = _vm.SettingsVm.SaveSettingsCommand; _ = _vm.SaveSettingsAsync();
         RefreshPageLabel();
     }

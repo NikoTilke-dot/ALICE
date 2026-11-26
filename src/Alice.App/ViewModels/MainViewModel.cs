@@ -76,7 +76,7 @@ public partial class MainViewModel : ObservableObject
         StatsViewModel stats, SettingsViewModel settingsVm, SearchViewModel search, StoryboardViewModel board, IImportExportService? importExport = null)
     {
         _repo = repo; _importExport = importExport; _settings = settings; _backup = backup; _deepAi = deepAi;
-        _nav = nav; _editor = editor; _inspectorVm = inspector; _cork = cork; _outliner = outliner; _chars = chars; _world = world;
+        _nav = nav; _editor = editor; _editor.LayoutDocument = ApplyPageLayout; _inspectorVm = inspector; _cork = cork; _outliner = outliner; _chars = chars; _world = world;
         _timeline = timeline; _research = research; _ai = ai; _dash = dash; _stats = stats; _settingsVm = settingsVm; _search = search; _board = board;
         Inspector = _inspectorVm;
         UpdateWorkspace();
@@ -337,6 +337,21 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand] private void Exit() => System.Windows.Application.Current.Shutdown();
+    /// <summary>Seiten-Layout auf ein frisches FlowDocument anwenden: weisses Papier, schwarze Schrift, A4-Groesse, konfigurierbare Raender (alle WPF-DIPs, KEINE Inches!).</summary>
+    private void ApplyPageLayout(System.Windows.Documents.FlowDocument doc)
+    {
+        var st = _settings.Current;
+        const double Dpi = 96.0;
+        doc.Background = System.Windows.Media.Brushes.White;
+        doc.Foreground = System.Windows.Media.Brushes.Black;
+        double marginMm = System.Math.Clamp(st.PageMarginMm, 10, 50);
+        doc.PagePadding = new System.Windows.Thickness(marginMm * Dpi / 25.4);
+        var (wMm, hMm) = (st.PageSize == "Letter") ? (215.9, 279.4) : (210.0, 297.0);
+        if (st.PageOrientation == "Landscape") (wMm, hMm) = (hMm, wMm);
+        doc.PageWidth = wMm * Dpi / 25.4;
+        doc.PageHeight = hMm * Dpi / 25.4;
+    }
+
     /// <summary>Einstellungen sofort sichern (fuer Editor-Layout: Zoom/Groesse/Orientierung).</summary>
     public Task SaveSettingsAsync() => _settings.SaveAsync();
     // Hinweis: Formatierungs-Undo macht der RichTextBox-Editor selbst (Ctrl+Z/Ctrl+Y); Menü gibt nur die Anweisung weiter.

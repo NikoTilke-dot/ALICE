@@ -72,6 +72,9 @@ public partial class EditorViewModel : ObservableObject
         else { Text = string.Empty; NodeTitle = "—"; StatusLabel = "—"; Synopsis = string.Empty; UpdateCounts(); }
     }
 
+    /// <summary>Layout-Hook: gesetzt vom MainViewModel (weisses Papier, schwarze Schrift, A4-Groesse/Padding). Wird bei JEDER neuen FlowDocument-Erzeugung aufgerufen - so bleibt das Layout auch nach Refresh()/Snapshot-Restore stabil.</summary>
+    public Action<FlowDocument>? LayoutDocument;
+
     /// <summary>An das FlowDocument haengen: nur Font-Grundwerte schreiben (TextChanged kommt ueber die RichTextBox des Viewers).</summary>
     public void HookDocument(FlowDocument doc)
     {
@@ -82,6 +85,7 @@ public partial class EditorViewModel : ObservableObject
             if (double.TryParse(EditorFontSize, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var fs) && fs > 0)
                 doc.FontSize = fs;
         }
+        LayoutDocument?.Invoke(doc);
     }
 
     /// <summary>Der Viewer meldet Textaenderungen aus der fokussierten RichTextBox. Debounced (250 ms) aus dem FlowDocument ziehen.</summary>
