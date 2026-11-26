@@ -51,7 +51,6 @@ public partial class MainWindow : Window
         // so dass Drags nicht nach dem ersten Move taub werden.
         PreviewMouseMove += BoardViewport_PreviewMouseMove;
         PreviewMouseUp += BoardViewport_PreviewMouseUp;
-        PreviewMouseDown += MouseTrace;
     }
 
     // ---------- Helpers ----------
@@ -89,7 +88,6 @@ public partial class MainWindow : Window
 
     private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        try { var tb = Keyboard.FocusedElement as System.Windows.Controls.TextBox; var info = tb != null ? "ro=" + tb.IsReadOnly + " sel=" + tb.SelectedText.Length + " caret=" + tb.CaretIndex + " len=" + tb.Text.Length + " dc=" + (tb.DataContext?.GetType().Name ?? "?") : ""; var chain = new System.Collections.Generic.List<string>(); var c = Keyboard.FocusedElement as DependencyObject; while (c is not null && chain.Count < 10) { var fe = c as FrameworkElement; if (fe?.DataContext is not null) chain.Add(fe.GetType().Name + "(dc=" + fe.DataContext.GetType().Name + ")"); else chain.Add(fe?.GetType().Name + ""); c = System.Windows.Media.VisualTreeHelper.GetParent(c); } System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "alice-keys.log"), "[" + DateTime.Now.ToString("HH:mm:ss") + "] key=" + e.Key + " handled=" + e.Handled + " " + info + " chain=" + string.Join("<-", chain) + Environment.NewLine); } catch { }
         if (e.Key == Key.Space) _spaceDown = true;
         if (!IsBoardActive()) return;
         // WICHTIG: Keyboard.FocusedElement (mit Property). 'Keyboard.Focus' ohne
@@ -134,7 +132,6 @@ public partial class MainWindow : Window
         bvm.PendingX = x; bvm.PendingY = y;
     }
 
-    private void MouseTrace(object sender, MouseButtonEventArgs e) { try { var parts = new System.Collections.Generic.List<string>(); var cur = e.OriginalSource as DependencyObject; while (cur is not null && parts.Count < 8) { var fe = cur as FrameworkElement; parts.Add(fe is not null && !string.IsNullOrEmpty(fe.Name) ? fe.GetType().Name + "[" + fe.Name + "]" : fe?.GetType().Name + ""); cur = System.Windows.Media.VisualTreeHelper.GetParent(cur); } System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "alice-mouse.log"), "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + e.ButtonState + " ws=" + _vm.CurrentWorkspace?.GetType().Name + " mi=" + _vm.ModeIndex + " chain=" + string.Join("<-", parts) + Environment.NewLine); } catch { } }
     private void BoardViewport_PreviewMouseMove(object sender, MouseEventArgs e)
     {
         if (!IsBoardActive()) return;
@@ -186,7 +183,6 @@ public partial class MainWindow : Window
     private void BoardViewport_PreviewMouseUp(object sender, MouseButtonEventArgs e)
     {
         var bvm = IsBoardActive() ? (StoryboardViewModel)_vm.CurrentWorkspace! : null;
-        try { var upChain = new System.Collections.Generic.List<string>(); var uc = e.OriginalSource as DependencyObject; while (uc is not null && upChain.Count < 6) { var ue = uc as FrameworkElement; upChain.Add(ue is not null && !string.IsNullOrEmpty(ue.Name) ? ue.GetType().Name + "[" + ue.Name + "]" : ue?.GetType().Name + ""); uc = System.Windows.Media.VisualTreeHelper.GetParent(uc); } System.IO.File.AppendAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "alice-mouse.log"), "[" + DateTime.Now.ToString("HH:mm:ss") + "] UP chain=" + string.Join("<-", upChain) + Environment.NewLine); } catch { }
         // Zentral: NUR Board-Border-Capture freigeben (Karte/Viewport). Niemals ein
         // Button/ComboBox-Capture: das würde dessen Klick verhindern (WPF-Button
         // selbst ergreift beim Druecken Capture - Freigabe davor killt den Click).
