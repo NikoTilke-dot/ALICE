@@ -144,6 +144,12 @@ public partial class MainViewModel : ObservableObject
         TotalWords = Project.TotalWords;
         SaveState = "Gespeichert";
         RefreshNavigator();
+        // Beim Projekt-Start das erste Kapitel automatisch öffnen (Editor ist sofort beschreibbar).
+        if (_selectedNavigatorItem is null)
+        {
+            var first = FindFirstChapter(NavigatorItems) ?? NavigatorItems.FirstOrDefault(n => n.Node is not null);
+            if (first is not null) SelectedNavigatorItem = first;
+        }
         RefreshInspector();
         UpdateWorkspace();
         _editor.Refresh(Project, SelectedManuscriptNode);
@@ -157,6 +163,17 @@ public partial class MainViewModel : ObservableObject
         _dash.Refresh(Project);
         _stats.Refresh(Project);
         _board.Refresh(Project);
+    }
+
+    private static NavigatorNode? FindFirstChapter(System.Collections.Generic.IEnumerable<NavigatorNode> items)
+    {
+        foreach (var n in items)
+        {
+            if (n.Node?.Kind == Alice.Core.Enums.NodeKind.Chapter) return n;
+            var child = FindFirstChapter(n.Children);
+            if (child is not null) return child;
+        }
+        return null;
     }
 
     private void RefreshNavigator()

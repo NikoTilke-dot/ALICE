@@ -56,15 +56,16 @@ public partial class EditorViewModel : ObservableObject
         {
             // Dokument laden: XAML-Entwurf (Formatierung) oder Klartext-Fallback.
             _documentSyncing = true;
+            FlowDocument doc;
             try
             {
                 // Kapitel-Struktur (Buch): Titelseite (generiert) + Seitenumbruch + Schreibseiten (Inhalt).
-                var doc = FlowDocumentTools.CompileChapterDocument(node);
+                doc = FlowDocumentTools.CompileChapterDocument(node);
                 Document = doc;
-                HookDocument(doc);
                 Text = FlowDocumentTools.ToPlainText(doc); _content = Text;
             }
             finally { _documentSyncing = false; }
+            HookDocument(doc);
             NodeTitle = node.Title; Synopsis = node.Synopsis ?? string.Empty;
             StatusLabel = node.Status.ToString();
             _snapshots = new ObservableCollection<Snapshot>(node.Snapshots.OrderByDescending(s => s.CreatedAt));
@@ -191,15 +192,18 @@ public partial class EditorViewModel : ObservableObject
     /// <summary>Snapshot wiederherstellen: Kapitel-Dokument mit dem Klartext als Schreibseiten neu aufbauen (Formatierung entfällt bei Snapshots, Titelseite bleibt).</summary>
     internal void LoadPlainTextIntoDocument(string plain, bool setRich = false)
     {
+        FlowDocument? hookDoc = null;
         _documentSyncing = true;
         try
         {
             var doc = _node is not null ? FlowDocumentTools.CompileChapterDocumentWithBody(_node, FlowDocumentTools.FromPlainText(plain)) : FlowDocumentTools.FromPlainText(plain);
-            Document = doc; HookDocument(doc);
+            Document = doc;
             Text = FlowDocumentTools.ToPlainText(doc);
             if (_node is not null) { _node.Content = Text; _node.ContentRich = FlowDocumentTools.ToXaml(doc); }
+            hookDoc = doc;
         }
         finally { _documentSyncing = false; }
+        if (hookDoc is not null) HookDocument(hookDoc);
         UpdateCounts();
     }
 

@@ -95,13 +95,16 @@ public static class FlowDocumentTools
             var sp = new Paragraph(new Run(string.Empty)) { Tag = ChapterSpacerTag, FontSize = 24, TextAlignment = TextAlignment.Center, Margin = new Thickness(0) };
             compiled.Blocks.Add(sp);
         }
-        if (!string.IsNullOrWhiteSpace(number))
+        // Grosse Kapitel-Ueberschrift "KAPITEL N" (oder der Titel selbst) + optionaler Untertitel.
+        var heading = string.IsNullOrWhiteSpace(number) ? displayTitle : number;
+        var num = new Paragraph(new Run(heading)) { Tag = ChapterNumTag, FontSize = 28, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 0, 0, 10) };
+        compiled.Blocks.Add(num);
+        var subtitleText = string.IsNullOrWhiteSpace(number) ? string.Empty : displayTitle;
+        if (!string.IsNullOrWhiteSpace(subtitleText))
         {
-            var num = new Paragraph(new Run(number)) { Tag = ChapterNumTag, FontSize = 14, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 0, 0, 8) };
-            compiled.Blocks.Add(num);
+            var title = new Paragraph(new Run(subtitleText)) { Tag = ChapterTitleTag, FontSize = 16, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 0, 0, 10) };
+            compiled.Blocks.Add(title);
         }
-        var title = new Paragraph(new Run(displayTitle)) { Tag = ChapterTitleTag, FontSize = 28, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 0, 0, 10) };
-        compiled.Blocks.Add(title);
         var div = new Paragraph(new Run("· · ·")) { Tag = ChapterDividerTag, FontSize = 14, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 10, 0, 0) };
         compiled.Blocks.Add(div);
 
@@ -144,18 +147,25 @@ public static class FlowDocumentTools
     public static string? ExtractEditedChapterTitle(FlowDocument doc, string? currentTitle)
     {
         if (!HasChapterHeader(doc) || string.IsNullOrWhiteSpace(currentTitle)) return null;
-        var edited = string.Empty;
+        string? headingText = null, subtitleText = null;
         foreach (var block in doc.Blocks)
         {
-            if (block is Paragraph p && (p.Tag as string) == ChapterTitleTag)
-            {
-                edited = new TextRange(p.ContentStart, p.ContentEnd).Text.Trim();
-            }
+            if (block is not Paragraph p) continue;
+            var tag = p.Tag as string;
+            if (tag == ChapterNumTag) headingText = new TextRange(p.ContentStart, p.ContentEnd).Text.Trim();
+            else if (tag == ChapterTitleTag) subtitleText = new TextRange(p.ContentStart, p.ContentEnd).Text.Trim();
         }
-        if (string.IsNullOrWhiteSpace(edited)) return null;
         var (number, displayTitle) = SplitChapterTitle(currentTitle);
-        if (string.Equals(edited, displayTitle, StringComparison.Ordinal)) return null;
-        return string.IsNullOrWhiteSpace(number) ? edited : number + ": " + edited;
+        var headingExpected = string.IsNullOrWhiteSpace(number) ? displayTitle : number;
+        var subtitleExpected = string.IsNullOrWhiteSpace(number) ? string.Empty : displayTitle;
+        bool headingChanged = headingText is not null && !string.Equals(headingText, headingExpected, StringComparison.Ordinal);
+        bool subtitleChanged = (subtitleText ?? string.Empty) != subtitleExpected;
+        if (!headingChanged && !subtitleChanged) return null;
+        var newNumber = headingChanged && headingText is not null ? headingText : number;
+        var newSub = subtitleChanged ? (subtitleText ?? string.Empty) : subtitleExpected;
+        if (string.IsNullOrWhiteSpace(newNumber)) return string.IsNullOrWhiteSpace(newSub) ? null : newSub;
+        if (string.IsNullOrWhiteSpace(newSub)) return newNumber;
+        return newNumber + ": " + newSub;
     }
 
     // ---------- Rechtschreib-Dekorationen (rote Unterstreichung) ----------
